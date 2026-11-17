@@ -1,0 +1,2640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>헥사체스 (HexaChess) - By 이윤우</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Noto Sans KR -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans KR', sans-serif;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 육각형 보드 컨테이너 및 SVG 스타일 */
+    #board-container {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 1.15 / 1;
+      margin: 0 auto;
+    }
+
+    svg#hex-board {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .hex-tile {
+      cursor: pointer;
+    }
+
+    .hex-tile:hover {
+      opacity: 0.9;
+    }
+
+    /* 이동 가능 하이라이트 (반짝임 제거 및 깔끔한 고정 표시) */
+    .move-indicator {
+      pointer-events: none;
+    }
+
+    #layer-highlights {
+      pointer-events: none;
+    }
+
+    /* 프리스타 굴절 경로 점선 */
+    .prism-ray {
+      stroke-dasharray: 5 5;
+      pointer-events: none;
+    }
+
+    @keyframes prismShockwave {
+      0% { transform: scale(0.4); opacity: 1; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+
+    .prism-shockwave {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: prismShockwave 0.55s ease-out forwards;
+      pointer-events: none;
+    }
+
+    .board-coord-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      fill: rgba(148, 163, 184, 0.55);
+      pointer-events: none;
+    }
+
+    /* 설정 모달 옵션 버튼 선택 강조 스타일 */
+    .setup-option-selected {
+      border-width: 2px !important;
+      border-color: #f59e0b !important;
+      background-color: rgba(245, 158, 11, 0.18) !important;
+      color: #fcd34d !important;
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.45);
+    }
+
+    /* 커스텀 스크롤바 */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4">
+
+  <!-- 상단 헤더 -->
+  <header class="w-full max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-2 bg-slate-800/80 backdrop-blur-md border border-slate-700/70 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-lg">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-900 font-black text-lg sm:text-xl shadow-md">
+        ⬡
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base sm:text-xl font-extrabold tracking-tight text-white">헥사체스 <span class="text-amber-400 font-semibold text-xs sm:text-sm">HexaChess</span></h1>
+          <span class="text-[11px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-medium">기획: 이윤우</span>
+        </div>
+        <p class="text-xs text-slate-400 hidden sm:block">61칸 3색 육각형 보드와 거울 기사 '프리스타(Prism)'의 전략 보드게임</p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <button id="btn-analysis-mode" class="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-cyan-900/70 hover:bg-cyan-800 border border-cyan-500/40 text-cyan-200 text-xs sm:text-sm font-bold transition cursor-pointer">
+        🧪 분석/연구실
+      </button>
+      <button id="btn-settings" class="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs sm:text-sm font-semibold transition cursor-pointer">
+        ⚙️ 설정
+      </button>
+      <button id="btn-rules" class="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs sm:text-sm font-semibold transition cursor-pointer">
+        📖 규칙
+      </button>
+      <button id="btn-new-game" class="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs sm:text-sm font-bold shadow-md transition cursor-pointer">
+        새 게임
+      </button>
+    </div>
+  </header>
+
+  <!-- 메인 게임 영역 -->
+  <main class="w-full max-w-[1440px] mx-auto my-1.5 sm:my-2 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-4 items-center flex-grow">
+
+    <!-- 왼쪽 패널: 백(White) 플레이어 정보 & 상태 -->
+    <section id="left-sidebar" class="lg:col-span-3 flex flex-col gap-2 sm:gap-3 order-2 lg:order-1">
+      <!-- 백 진영 카드 (왼쪽 시작) -->
+      <div id="card-white" class="bg-slate-800/90 border-2 border-amber-400 rounded-2xl p-3 sm:p-4 shadow-lg transition-all">
+        <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white border border-slate-400 inline-block shadow-sm"></span>
+            <span id="white-player-name" class="font-bold text-white text-sm sm:text-base">백 (White)</span>
+            <span id="score-white-badge" class="text-[11px] sm:text-xs font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">기물 49점</span>
+          </div>
+          <span id="badge-white-turn" class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">내 차례</span>
+        </div>
+        <div class="flex items-baseline justify-between mt-1">
+          <span class="text-xs text-slate-400">남은 시간</span>
+          <span id="timer-white" class="font-mono text-xl sm:text-3xl font-extrabold text-white tracking-wider">10:00</span>
+        </div>
+        <div class="mt-2 pt-1.5 border-t border-slate-700/70 flex items-center justify-between text-xs text-slate-400">
+          <span>잡은 기물 <b id="cap-score-white" class="text-amber-300 ml-0.5">+0점</b>:</span>
+          <div id="captured-by-white" class="flex flex-wrap gap-1 text-base min-h-[22px]"></div>
+        </div>
+      </div>
+
+      <!-- 게임 상태 및 안내 메시지 박스 -->
+      <div class="bg-slate-800/70 border border-slate-700/70 rounded-2xl p-3 sm:p-4 shadow-md">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">현재 대국 정보</span>
+          <span id="mode-display" class="text-xs font-bold text-amber-400">AI 대전 (보통)</span>
+        </div>
+        <p id="status-message" class="text-xs sm:text-sm text-slate-200 font-medium leading-relaxed mt-1">
+          백(White)의 차례입니다. 기물을 선택하세요.
+        </p>
+        <div id="prism-hint-box" class="hidden mt-2 p-2.5 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-xs text-cyan-200">
+          ✨ <b>프리스타(Prism) 선택됨!</b><br/>
+          대각선(꼭짓점 방향) 최대 2칸 직진! 첫 1칸에서 <b>아군 기물</b>을 만나면 거울처럼 밟고 <b>살짝 꺾어 바로 옆 칸(좌우 인접 칸)</b>으로 기습할 수 있습니다.
+        </div>
+      </div>
+
+      <!-- 분석/연구실 전용 팔레트 & 컨트롤 패널 -->
+      <div id="analysis-panel" class="hidden bg-slate-800/95 border-2 border-cyan-500/60 rounded-2xl p-3.5 shadow-xl">
+        <div class="flex items-center justify-between mb-2">
+          <span id="analysis-panel-title" class="text-xs font-extrabold text-cyan-300">🧪 혼자 연구하기 (자유 배치 & 실험)</span>
+          <span id="analysis-phase-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">배치 편집 중</span>
+        </div>
+
+        <!-- 튜토리얼 전용 기물 선택 바 (튜토리얼 진입 시 표시) -->
+        <div id="tutorial-piece-box" class="hidden space-y-2 mb-2.5">
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            체험할 기물을 선택하면 보드에 배치됩니다. 기물을 클릭해 이동 경로와 특수 규칙을 직접 움직여 보세요!
+          </p>
+          <div class="grid grid-cols-4 gap-1.5" id="tutorial-piece-grid">
+            <button type="button" data-tut="P" class="tut-piece-btn py-1.5 rounded-xl bg-cyan-500 text-slate-950 text-xs font-extrabold cursor-pointer transition">◈ 프리스타</button>
+            <button type="button" data-tut="Q" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♕ 퀸</button>
+            <button type="button" data-tut="R" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♖ 룩</button>
+            <button type="button" data-tut="B" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♗ 비숍</button>
+            <button type="button" data-tut="N" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♘ 나이트</button>
+            <button type="button" data-tut="p" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♙ 폰</button>
+            <button type="button" data-tut="K" class="tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition">♔ 킹</button>
+            <button type="button" id="btn-tut-reset" class="py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer transition">↻ 초기화</button>
+          </div>
+          <div id="tutorial-desc-box" class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 leading-relaxed">
+            <b class="text-cyan-300">◈ 프리스타 (Prism)</b>: 꼭짓점(대각선) 방향으로 최대 2칸 직진하며, 첫 1칸에서 <b class="text-amber-300">아군 기물</b>을 만나면 밟고 <b class="text-cyan-300">살짝 꺾여 바로 옆 칸</b>으로 기습합니다!
+          </div>
+        </div>
+
+        <!-- 모드 전환: 배치하기 vs 이동 실험하기 (분석실 전용) -->
+        <div id="analysis-mode-tabs" class="grid grid-cols-2 gap-1.5 mb-2.5">
+          <button id="btn-ana-edit" class="py-1.5 rounded-xl bg-cyan-500 text-slate-950 text-xs font-extrabold cursor-pointer transition">
+            ✏️ 1. 기물 자유 배치
+          </button>
+          <button id="btn-ana-play" class="py-1.5 rounded-xl bg-slate-700 text-slate-200 hover:bg-slate-600 text-xs font-bold cursor-pointer transition">
+            ▶ 2. 배치 완료 & 테스트
+          </button>
+        </div>
+
+        <!-- 기물 팔레트 (배치 편집 중일 때 표시) -->
+        <div id="analysis-palette-box" class="space-y-2">
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>칸 클릭: 선택 기물 놓기 / 같은 기물 클릭 시 삭제</span>
+          </div>
+          <div class="grid grid-cols-4 gap-1" id="analysis-palette-grid">
+            <button data-brush="w:P" class="ana-brush-btn active py-1.5 rounded-lg bg-cyan-500/25 border border-cyan-400 text-white text-xs font-bold cursor-pointer">◈ 백프리</button>
+            <button data-brush="w:Q" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♕ 백퀸</button>
+            <button data-brush="w:R" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♖ 백룩</button>
+            <button data-brush="w:B" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♗ 백비숍</button>
+            <button data-brush="w:N" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♘ 백나이트</button>
+            <button data-brush="w:p" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♙ 백폰</button>
+            <button data-brush="w:K" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer">♔ 백킹</button>
+            <button data-brush="erase" class="ana-brush-btn py-1.5 rounded-lg bg-red-950/70 border border-red-500/40 text-red-300 text-xs font-bold cursor-pointer">🧹 지우개</button>
+
+            <button data-brush="b:P" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-cyan-300 text-xs font-bold cursor-pointer">❖ 흑프리</button>
+            <button data-brush="b:Q" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♛ 흑퀸</button>
+            <button data-brush="b:R" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♜ 흑룩</button>
+            <button data-brush="b:B" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♝ 흑비숍</button>
+            <button data-brush="b:N" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♞ 흑나이트</button>
+            <button data-brush="b:p" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♟ 흑폰</button>
+            <button data-brush="b:K" class="ana-brush-btn py-1.5 rounded-lg bg-slate-900/70 border border-slate-700 text-slate-300 text-xs font-bold cursor-pointer">♚ 흑킹</button>
+            <button id="btn-ana-clear" class="py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer">판 비우기</button>
+          </div>
+          <div class="pt-1">
+            <button id="btn-ana-reset-std" class="w-full py-1.5 rounded-lg bg-slate-700/90 hover:bg-slate-600 text-slate-200 text-[11px] font-bold cursor-pointer">
+              기본 대칭 배치 불러오기
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 중앙 패널: 61칸 3색 육각형 보드 -->
+    <section id="center-board-section" class="lg:col-span-6 flex flex-col items-center justify-center order-1 lg:order-2">
+      <div id="board-container" class="flex items-center justify-center">
+        <svg id="hex-board" viewBox="-355 -355 710 710" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow-cyan" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#22d3ee" />
+            </marker>
+            <marker id="arrow-red" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#ef4444" />
+            </marker>
+            <marker id="arrow-amber" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#fbbf24" />
+            </marker>
+          </defs>
+          <g id="layer-tiles"></g>
+          <g id="layer-highlights"></g>
+          <g id="layer-pieces"></g>
+          <g id="layer-rays"></g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- 오른쪽 패널: 흑(Black) 플레이어 정보 & 대국 기록(복기) -->
+    <section id="right-sidebar" class="lg:col-span-3 flex flex-col gap-2 sm:gap-3 order-3">
+      <!-- 흑 진영 카드 (오른쪽 시작) -->
+      <div id="card-black" class="bg-slate-800/90 border-2 border-slate-700 rounded-2xl p-3 sm:p-4 shadow-lg transition-all">
+        <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-950 border-2 border-slate-400 inline-block shadow-sm"></span>
+            <span id="black-player-name" class="font-bold text-white text-sm sm:text-base">흑 (AI)</span>
+            <span id="score-black-badge" class="text-[11px] sm:text-xs font-extrabold bg-slate-700 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-md">기물 49점</span>
+          </div>
+          <span id="badge-black-turn" class="hidden text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">생각 중</span>
+        </div>
+        <div class="flex items-baseline justify-between mt-1">
+          <span class="text-xs text-slate-400">남은 시간</span>
+          <span id="timer-black" class="font-mono text-xl sm:text-3xl font-extrabold text-white tracking-wider">10:00</span>
+        </div>
+        <div class="mt-2 pt-1.5 border-t border-slate-700/70 flex items-center justify-between text-xs text-slate-400">
+          <span>잡은 기물 <b id="cap-score-black" class="text-amber-300 ml-0.5">+0점</b>:</span>
+          <div id="captured-by-black" class="flex flex-wrap gap-1 text-base min-h-[22px]"></div>
+        </div>
+      </div>
+
+      <!-- 대국 기록 (기보) & 복기/무르기/공유 컨트롤 -->
+      <div class="bg-slate-800/70 border border-slate-700/70 rounded-2xl p-3 sm:p-4 shadow-md flex flex-col h-52 sm:h-72">
+        <div class="flex items-center justify-between mb-2 gap-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">기보 & 복기</span>
+          <div class="flex items-center gap-1">
+            <button id="btn-undo-move" title="직전 내 턴으로 무르기" class="text-xs text-amber-300 hover:text-slate-950 hover:bg-amber-400 bg-slate-700/80 border border-amber-500/30 px-2 py-1 rounded-lg font-bold cursor-pointer transition disabled:opacity-35">
+              ↩ 무르기
+            </button>
+            <button id="btn-copy-pgn" title="기보 텍스트 복사" class="text-xs text-cyan-300 hover:text-slate-950 hover:bg-cyan-400 bg-slate-700/80 border border-cyan-500/30 px-2 py-1 rounded-lg font-bold cursor-pointer transition">
+              📋 복사
+            </button>
+            <button id="btn-sound-toggle" class="text-xs text-slate-300 hover:text-white bg-slate-700/70 px-2 py-1 rounded-lg cursor-pointer">
+              🔊
+            </button>
+          </div>
+        </div>
+
+        <!-- 복기 컨트롤 바 -->
+        <div class="flex items-center justify-between gap-1 bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 mb-2">
+          <button id="btn-rev-first" title="처음 배치로" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer disabled:opacity-35">⏮</button>
+          <button id="btn-rev-prev" title="이전 수" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer disabled:opacity-35">◀</button>
+          <span id="review-step-label" class="text-xs font-mono font-bold text-amber-300 px-1">0 / 0</span>
+          <button id="btn-rev-next" title="다음 수" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer disabled:opacity-35">▶</button>
+          <button id="btn-rev-last" title="최신 수(현재)로" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer disabled:opacity-35">⏭</button>
+        </div>
+
+        <!-- 복기 중 알림 배너 -->
+        <div id="review-mode-banner" class="hidden mb-2 px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-200 text-xs font-semibold flex items-center justify-between">
+          <span>🔍 이전 수 복기 중</span>
+          <button id="btn-exit-review" class="underline font-bold text-amber-300 hover:text-white cursor-pointer">현재로 복귀</button>
+        </div>
+
+        <div id="move-log" class="flex-grow overflow-y-auto space-y-1 text-xs font-mono text-slate-300 pr-1">
+          <div class="text-slate-500 italic">대국이 시작되면 기보가 기록됩니다.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 푸터 -->
+  <footer class="w-full max-w-[1440px] mx-auto text-center text-xs text-slate-500 py-1">
+    헥사체스 (HexaChess) • 스테일메이트 없음 • 상대방의 킹(King)을 직접 잡으면 즉시 승리합니다!
+  </footer>
+
+  <!-- ==================== 모달 1: 새 게임 설정 모달 ==================== -->
+  <div id="modal-setup" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl">
+      <div class="text-center mb-5">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 text-2xl font-black mb-2">⬡</div>
+        <h2 class="text-2xl font-extrabold text-white">헥사체스 대국 설정</h2>
+        <p class="text-xs text-slate-400 mt-1">원하는 대전 모드와 제한 시간을 선택하세요</p>
+      </div>
+
+      <!-- 대전 모드 선택 -->
+      <div class="mb-3.5">
+        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">1. 대전 모드</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-mode="ai" class="setup-mode-btn setup-option-selected py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 font-bold text-xs sm:text-sm flex flex-col items-center gap-0.5 cursor-pointer transition hover:border-slate-500">
+            <span>🤖 AI 대전</span>
+            <span class="text-[10px] font-normal opacity-80">혼자서 연습</span>
+          </button>
+          <button type="button" data-mode="pvp" class="setup-mode-btn py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 font-bold text-xs sm:text-sm flex flex-col items-center gap-0.5 cursor-pointer transition hover:border-slate-500">
+            <span>👥 친구 대전</span>
+            <span class="text-[10px] font-normal opacity-80">2인 번갈아</span>
+          </button>
+          <button type="button" data-mode="analysis" class="setup-mode-btn py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 font-bold text-xs sm:text-sm flex flex-col items-center gap-0.5 cursor-pointer transition hover:border-slate-500">
+            <span>🧪 분석/연구</span>
+            <span class="text-[10px] font-normal opacity-80">자유 배치 실험</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 진영 선택 (AI 대전 시 선공 백 / 후공 흑 / 랜덤) -->
+      <div id="player-side-section" class="mb-3.5">
+        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">2. 내 진영 선택</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-side="w" class="setup-side-btn setup-option-selected py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            ⚪ 백 (선공)
+          </button>
+          <button type="button" data-side="b" class="setup-side-btn py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            ⚫ 흑 (후공)
+          </button>
+          <button type="button" data-side="random" class="setup-side-btn py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            🎲 랜덤 배정
+          </button>
+        </div>
+      </div>
+
+      <!-- AI 난이도 선택 (AI 대전 시 활성화) -->
+      <div id="ai-difficulty-section" class="mb-3.5">
+        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">3. AI 난이도</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-diff="easy" class="setup-diff-btn py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            쉬움
+          </button>
+          <button type="button" data-diff="normal" class="setup-diff-btn setup-option-selected py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            보통
+          </button>
+          <button type="button" data-diff="hard" class="setup-diff-btn py-2 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            어려움
+          </button>
+        </div>
+      </div>
+
+      <!-- 시간 제한 선택 (피셔 방식) -->
+      <div class="mb-5">
+        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">4. 제한 시간 (기본 분 + 수당 추가 초)</label>
+        <div class="grid grid-cols-5 gap-1.5">
+          <button type="button" data-time="10+5" class="setup-time-btn setup-option-selected py-2.5 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-extrabold cursor-pointer hover:border-slate-500 transition">
+            10 + 5
+          </button>
+          <button type="button" data-time="15+10" class="setup-time-btn py-2.5 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            15 + 10
+          </button>
+          <button type="button" data-time="10+0" class="setup-time-btn py-2.5 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            10 + 0
+          </button>
+          <button type="button" data-time="5+10" class="setup-time-btn py-2.5 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            5 + 10
+          </button>
+          <button type="button" data-time="5+0" class="setup-time-btn py-2.5 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-300 text-xs font-bold cursor-pointer hover:border-slate-500 transition">
+            5 + 0
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button id="btn-start-match" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-base shadow-lg shadow-amber-500/20 transition cursor-pointer">
+          게임 시작하기 ▶
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-start-tutorial" type="button" class="w-full py-2.5 px-2 rounded-2xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-200 font-extrabold text-xs sm:text-sm shadow-md transition cursor-pointer">
+            ◈ 튜토리얼 체험
+          </button>
+          <button id="btn-setup-open-settings" type="button" class="w-full py-2.5 px-2 rounded-2xl bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-100 font-extrabold text-xs sm:text-sm shadow-md transition cursor-pointer">
+            ⚙️ 화면·사운드 설정
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 모달 2: 폰 승진(Promotion) 모달 ==================== -->
+  <div id="modal-promotion" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-amber-500/50 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center">
+      <h3 class="text-xl font-extrabold text-white mb-1">♟ 폰 승진 (Promotion)</h3>
+      <p class="text-xs text-slate-400 mb-4">상대 진영 끝에 도달했습니다! 승진할 기물을 선택하세요.</p>
+      <div class="grid grid-cols-5 gap-2">
+        <button data-promo="Q" class="promo-choice-btn p-2.5 rounded-2xl bg-slate-900 hover:bg-amber-500/20 border border-slate-700 hover:border-amber-400 flex flex-col items-center gap-1 cursor-pointer transition">
+          <span class="text-2xl">♕</span>
+          <span class="text-[11px] font-bold text-slate-200">퀸</span>
+        </button>
+        <button data-promo="P" class="promo-choice-btn p-2.5 rounded-2xl bg-slate-900 hover:bg-cyan-500/20 border border-cyan-500/50 hover:border-cyan-400 flex flex-col items-center gap-1 cursor-pointer transition">
+          <span class="text-2xl text-cyan-400">◈</span>
+          <span class="text-[11px] font-bold text-cyan-300">프리스타</span>
+        </button>
+        <button data-promo="R" class="promo-choice-btn p-2.5 rounded-2xl bg-slate-900 hover:bg-amber-500/20 border border-slate-700 hover:border-amber-400 flex flex-col items-center gap-1 cursor-pointer transition">
+          <span class="text-2xl">♖</span>
+          <span class="text-[11px] font-bold text-slate-200">룩</span>
+        </button>
+        <button data-promo="B" class="promo-choice-btn p-2.5 rounded-2xl bg-slate-900 hover:bg-amber-500/20 border border-slate-700 hover:border-amber-400 flex flex-col items-center gap-1 cursor-pointer transition">
+          <span class="text-2xl">♗</span>
+          <span class="text-[11px] font-bold text-slate-200">비숍</span>
+        </button>
+        <button data-promo="N" class="promo-choice-btn p-2.5 rounded-2xl bg-slate-900 hover:bg-amber-500/20 border border-slate-700 hover:border-amber-400 flex flex-col items-center gap-1 cursor-pointer transition">
+          <span class="text-2xl">♘</span>
+          <span class="text-[11px] font-bold text-slate-200">나이트</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 모달 3: 게임 종료 (승리/패배) 모달 ==================== -->
+  <div id="modal-gameover" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border-2 border-amber-500/70 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center">
+      <div id="gameover-icon" class="text-5xl mb-3">🏆</div>
+      <h3 id="gameover-title" class="text-2xl font-black text-white mb-1">백 (White) 승리!</h3>
+      <p id="gameover-reason" class="text-sm text-slate-300 mb-6">상대방의 킹(King)을 잡았습니다.</p>
+      <div class="flex flex-col gap-2">
+        <button id="btn-gameover-copy" class="w-full py-2.5 rounded-2xl bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 border border-cyan-500/40 font-bold text-sm transition cursor-pointer">
+          📋 대국 기보 복사해서 공유하기
+        </button>
+        <button id="btn-gameover-review" class="w-full py-2.5 rounded-2xl bg-slate-700 hover:bg-slate-600 text-amber-300 border border-amber-500/40 font-bold text-sm shadow-md transition cursor-pointer">
+          🔍 보드 복기하기 (이전 수 돌려보기)
+        </button>
+        <button id="btn-gameover-restart" class="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-lg transition cursor-pointer">
+          다시 대국하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 모달 4: 규칙 안내 모달 ==================== -->
+  <div id="modal-rules" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl max-w-xl w-full p-6 shadow-2xl max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xl font-extrabold text-white">📖 헥사체스 & 프리스타 규칙</h3>
+        <button id="btn-close-rules" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-700">
+          <div class="font-bold text-amber-400 mb-1">🎯 승리 조건 & 거울 대칭 보드</div>
+          <p>• 한 변이 5칸인 <b>총 61칸(5-6-7-8-9-8-7-6-5) 3색 육각형 보드</b>에서 백(왼쪽, A~C열)과 흑(오른쪽, G~I열)이 완벽한 좌우 거울 대칭으로 마주 보고 시작합니다.</p>
+          <p>• 스테일메이트(무승부)가 없으며, <b>상대의 킹(♚)을 직접 잡거나 제한 시간이 초과</b>되면 즉시 승패가 결정됩니다.</p>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-cyan-950/60 border border-cyan-500/40">
+          <div class="font-bold text-cyan-300 mb-1">◈ 신규 기물: 프리스타 (Prism / 거울 기사) <span class="text-amber-300 ml-1">• 4점</span></div>
+          <p>• <b>기본 이동:</b> 육각형 타일의 꼭짓점 방향(6개 대각선)으로 <b>최대 2칸</b> 직선 이동합니다.</p>
+          <p>• <b>특수 능력 — 굴절(Refraction):</b> 첫 1칸에서 <b>아군 기물</b>을 만나면 거울처럼 밟고 <b>살짝 꺾여 바로 옆 칸(좌우 인접 2칸 중 1칸)</b>으로 기습할 수 있습니다.</p>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-700">
+          <div class="font-bold text-amber-400 mb-1">♟ 기존 체스 기물 점수 & 이동 (육각 체스 방식)</div>
+          <p>• <b>퀸 (♛ · 9점):</b> 룩 + 비숍의 모든 12방향 직선 이동.</p>
+          <p>• <b>룩 (♜ · 5점):</b> 6개 변(인접 칸) 방향으로 직선 이동.</p>
+          <p>• <b>비숍 (♝ · 3점):</b> 6개 꼭짓점(대각선, 같은 색 타일) 방향으로 직선 이동.</p>
+          <p>• <b>나이트 (♞ · 3점):</b> 2칸 직진 후 옆으로 1칸 꺾어 도약(최대 12곳).</p>
+          <p>• <b>폰 (♟ · 1점):</b> 상대 진영으로 1칸 전진(시작 위치 2칸 가능), 좌우 전방 대각선 포획, 끝줄 도달 시 승진.</p>
+          <p>• <b>킹 (♚ · 승리 목표):</b> 12방향 1칸 이동 (잡히면 즉시 게임 종료).</p>
+        </div>
+      </div>
+      <div class="mt-5 grid grid-cols-2 gap-2">
+        <button id="btn-rules-to-tutorial" class="py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold text-sm cursor-pointer">
+          ◈ 튜토리얼에서 직접 해보기
+        </button>
+        <button id="btn-close-rules-bottom" class="py-3 rounded-2xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-sm cursor-pointer">
+          확인했습니다
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 모달 5: 환경 설정 모달 ==================== -->
+  <div id="modal-settings" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-extrabold text-white">⚙️ 화면 & 사운드 설정</h3>
+        <button id="btn-close-settings" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- 1. 보드 색 테마 -->
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">1. 보드 타일 색상</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="setting-board-themes">
+            <button type="button" data-board-theme="classic" class="set-board-btn setup-option-selected p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <div class="flex gap-1"><span class="w-3.5 h-3.5 rounded-full bg-[#f1f5f9]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#fde68a]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#475569]"></span></div>
+              <span>클래식</span>
+            </button>
+            <button type="button" data-board-theme="emerald" class="set-board-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <div class="flex gap-1"><span class="w-3.5 h-3.5 rounded-full bg-[#ecfdf5]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#6ee7b7]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#065f46]"></span></div>
+              <span>에메랄드</span>
+            </button>
+            <button type="button" data-board-theme="ocean" class="set-board-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <div class="flex gap-1"><span class="w-3.5 h-3.5 rounded-full bg-[#f0f9ff]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#7dd3fc]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#0369a1]"></span></div>
+              <span>오션 블루</span>
+            </button>
+            <button type="button" data-board-theme="rosewood" class="set-board-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <div class="flex gap-1"><span class="w-3.5 h-3.5 rounded-full bg-[#fef3c7]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#f59e0b]"></span><span class="w-3.5 h-3.5 rounded-full bg-[#78350f]"></span></div>
+              <span>로즈우드</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. 바탕(배경) 색 테마 -->
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">2. 전체 바탕(배경) 색상</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="setting-bg-themes">
+            <button type="button" data-bg-theme="navy" class="set-bg-btn setup-option-selected p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <span class="w-6 h-4 rounded-md bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-slate-500"></span>
+              <span>딥 네이비</span>
+            </button>
+            <button type="button" data-bg-theme="obsidian" class="set-bg-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <span class="w-6 h-4 rounded-md bg-gradient-to-br from-[#18181b] to-[#09090b] border border-slate-500"></span>
+              <span>미드나잇</span>
+            </button>
+            <button type="button" data-bg-theme="forest" class="set-bg-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <span class="w-6 h-4 rounded-md bg-gradient-to-br from-[#064e3b] to-[#022c22] border border-emerald-500/50"></span>
+              <span>포레스트</span>
+            </button>
+            <button type="button" data-bg-theme="royal" class="set-bg-btn p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1.5 cursor-pointer transition">
+              <span class="w-6 h-4 rounded-md bg-gradient-to-br from-[#311042] to-[#13071c] border border-purple-500/50"></span>
+              <span>로열 퍼플</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. 기물 모습(스타일) 변경 -->
+        <div>
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">3. 기물 모습(디자인)</label>
+          <div class="grid grid-cols-3 gap-2" id="setting-piece-styles">
+            <button type="button" data-piece-style="classic" class="set-piece-btn setup-option-selected py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1 cursor-pointer transition">
+              <span class="text-lg">♔ ◈ ♚</span>
+              <span>클래식 표준</span>
+            </button>
+            <button type="button" data-piece-style="neon" class="set-piece-btn py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1 cursor-pointer transition">
+              <span class="text-lg text-cyan-300">♕ ❖ ♛</span>
+              <span>사이버 네온</span>
+            </button>
+            <button type="button" data-piece-style="royal" class="set-piece-btn py-2.5 px-2 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 text-xs font-bold flex flex-col items-center gap-1 cursor-pointer transition">
+              <span class="text-lg text-amber-300">♖ ◈ ♜</span>
+              <span>로열 골드</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. 효과음 음소거 & 효과음 종류 변경 -->
+        <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-700 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-white">4. 효과음 켜기 / 음소거</div>
+              <div class="text-[11px] text-slate-400">착수음 및 킹 포획 타격음 활성화</div>
+            </div>
+            <button type="button" id="btn-setting-mute" class="px-3.5 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-extrabold cursor-pointer transition">
+              🔊 소리 켜짐
+            </button>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">효과음 스타일 선택 (클릭 시 미리듣기)</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5" id="setting-sound-types">
+              <button type="button" data-sound-type="wood" class="set-sound-btn setup-option-selected py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs font-bold cursor-pointer transition">
+                🪵 클래식 틱
+              </button>
+              <button type="button" data-sound-type="crystal" class="set-sound-btn py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs font-bold cursor-pointer transition">
+                💎 크리스탈
+              </button>
+              <button type="button" data-sound-type="retro" class="set-sound-btn py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs font-bold cursor-pointer transition">
+                👾 8비트 레트로
+              </button>
+              <button type="button" data-sound-type="stone" class="set-sound-btn py-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs font-bold cursor-pointer transition">
+                🪨 바둑돌 탁
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-close-settings-bottom" class="mt-5 w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm cursor-pointer transition">
+        설정 완료
+      </button>
+    </div>
+  </div>
+
+<script>
+/**
+ * ============================================================================
+ * 헥사체스 (HexaChess) - 완전 단일 파일 구현
+ * 기획: 이윤우
+ * ============================================================================
+ */
+
+// ----------------------------------------------------------------------------
+// 1. 효과음 시스템 (Web Audio API)
+// ----------------------------------------------------------------------------
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+    this.soundType = 'wood'; // 'wood' | 'crystal' | 'retro' | 'stone'
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  playMoveTick(isRefracted = false) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const profiles = {
+      wood:    { wave: 'triangle', f1: 760,  f2: 920,  end: 140, dur: 0.05 },
+      crystal: { wave: 'sine',     f1: 1320, f2: 1760, end: 660, dur: 0.09 },
+      retro:   { wave: 'square',   f1: 520,  f2: 780,  end: 260, dur: 0.045 },
+      stone:   { wave: 'sine',     f1: 420,  f2: 310,  end: 75,  dur: 0.07 }
+    };
+    const cfg = profiles[this.soundType] || profiles.wood;
+
+    const playSingleTick = (offset, freq) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = cfg.wave;
+      osc.frequency.setValueAtTime(freq, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(cfg.end, now + offset + cfg.dur);
+
+      gain.gain.setValueAtTime(this.soundType === 'retro' ? 0.18 : 0.35, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + cfg.dur + 0.005);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + cfg.dur + 0.01);
+    };
+
+    playSingleTick(0, isRefracted ? cfg.f1 * 1.25 : cfg.f1);
+    playSingleTick(0.065, isRefracted ? cfg.f2 * 1.25 : cfg.f2);
+  }
+
+  playKingCaptureThud() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(210, now);
+    osc1.frequency.exponentialRampToValueAtTime(55, now + 0.14);
+    gain1.gain.setValueAtTime(0.55, now);
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(this.ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.16);
+
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(150, now + 0.11);
+    osc2.frequency.exponentialRampToValueAtTime(38, now + 0.34);
+    gain2.gain.setValueAtTime(0.65, now + 0.11);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    osc2.connect(gain2);
+    gain2.connect(this.ctx.destination);
+    osc2.start(now + 0.11);
+    osc2.stop(now + 0.37);
+  }
+}
+
+const sound = new SoundEngine();
+
+// ----------------------------------------------------------------------------
+// 2. 육각형 좌표계 & 61칸 보드 수학 (Axial Coordinates: q, r, s = -q-r)
+// ----------------------------------------------------------------------------
+const BOARD_RADIUS = 4;
+const HEX_SIZE = 42;
+
+const ORTHO_DIRS = [
+  { q:  1, r:  0 },
+  { q:  1, r: -1 },
+  { q:  0, r: -1 },
+  { q: -1, r:  0 },
+  { q: -1, r:  1 },
+  { q:  0, r:  1 }
+];
+
+const DIAG_DIRS = [
+  { q:  2, r: -1 },
+  { q:  1, r: -2 },
+  { q: -1, r: -1 },
+  { q: -2, r:  1 },
+  { q: -1, r:  2 },
+  { q:  1, r:  1 }
+];
+
+const KNIGHT_DIRS = [
+  { q:  3, r: -1 }, { q:  3, r: -2 },
+  { q:  2, r: -3 }, { q:  1, r: -3 },
+  { q: -1, r: -2 }, { q: -2, r: -1 },
+  { q: -3, r:  1 }, { q: -3, r:  2 },
+  { q: -2, r:  3 }, { q: -1, r:  3 },
+  { q:  1, r:  2 }, { q:  2, r:  1 }
+];
+
+function coordKey(q, r) {
+  return `${q},${r}`;
+}
+
+function formatHexAlgebraic(q, r) {
+  const fileChar = String.fromCharCode(65 + (q + BOARD_RADIUS));
+  const rMin = Math.max(-BOARD_RADIUS, -q - BOARD_RADIUS);
+  const rankNum = (r - rMin) + 1;
+  return `${fileChar}${rankNum}`;
+}
+
+function isValidHex(q, r) {
+  const s = -q - r;
+  return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= BOARD_RADIUS;
+}
+
+function hexToPixel(q, r) {
+  const x = HEX_SIZE * (3 / 2) * q;
+  const y = HEX_SIZE * Math.sqrt(3) * (r + q / 2);
+  return { x, y };
+}
+
+function getHexPolygonPoints(cx, cy, size = HEX_SIZE - 1.5) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const angleRad = (Math.PI / 180) * (60 * i);
+    const px = cx + size * Math.cos(angleRad);
+    const py = cy + size * Math.sin(angleRad);
+    pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+function getTileColorIndex(q, r) {
+  return ((q - r) % 3 + 3) % 3;
+}
+
+const BOARD_THEMES = {
+  classic: [
+    { fill: '#f1f5f9', stroke: '#94a3b8', name: '⚪' },
+    { fill: '#fde68a', stroke: '#d97706', name: '🟡' },
+    { fill: '#475569', stroke: '#1e293b', name: '⚫' }
+  ],
+  emerald: [
+    { fill: '#ecfdf5', stroke: '#6ee7b7', name: '⚪' },
+    { fill: '#6ee7b7', stroke: '#059669', name: '🟡' },
+    { fill: '#065f46', stroke: '#022c22', name: '⚫' }
+  ],
+  ocean: [
+    { fill: '#f0f9ff', stroke: '#7dd3fc', name: '⚪' },
+    { fill: '#7dd3fc', stroke: '#0284c7', name: '🟡' },
+    { fill: '#0369a1', stroke: '#0c4a6e', name: '⚫' }
+  ],
+  rosewood: [
+    { fill: '#fef3c7', stroke: '#d97706', name: '⚪' },
+    { fill: '#f59e0b', stroke: '#b45309', name: '🟡' },
+    { fill: '#78350f', stroke: '#451a03', name: '⚫' }
+  ]
+};
+
+const BG_THEMES = {
+  navy: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)',
+  obsidian: 'radial-gradient(circle at center, #18181b 0%, #09090b 100%)',
+  forest: 'radial-gradient(circle at center, #064e3b 0%, #022c22 100%)',
+  royal: 'radial-gradient(circle at center, #311042 0%, #13071c 100%)'
+};
+
+let currentBoardTheme = 'classic';
+let currentBgTheme = 'navy';
+let currentPieceStyle = 'classic'; // 'classic' | 'neon' | 'royal'
+let TILE_STYLES = BOARD_THEMES.classic;
+
+// ----------------------------------------------------------------------------
+// 3. 기물 정의 및 초기 배치
+// ----------------------------------------------------------------------------
+const PIECE_INFO = {
+  K: { name: '킹', symbolW: '♔', symbolB: '♚', value: 10000, points: 0 },
+  Q: { name: '퀸', symbolW: '♕', symbolB: '♛', value: 900, points: 9 },
+  R: { name: '룩', symbolW: '♖', symbolB: '♜', value: 500, points: 5 },
+  B: { name: '비숍', symbolW: '♗', symbolB: '♝', value: 330, points: 3 },
+  N: { name: '나이트', symbolW: '♘', symbolB: '♞', value: 320, points: 3 },
+  P: { name: '프리스타', symbolW: '◈', symbolB: '❖', value: 400, points: 4 },
+  p: { name: '폰', symbolW: '♙', symbolB: '♟', value: 100, points: 1 }
+};
+
+function createInitialBoard() {
+  const board = new Map();
+
+  const whiteSetup = [
+    { q: -4, r: 0, type: 'B' },
+    { q: -4, r: 1, type: 'Q' },
+    { q: -4, r: 2, type: 'B' },
+    { q: -4, r: 3, type: 'K' },
+    { q: -4, r: 4, type: 'B' },
+    { q: -3, r: -1, type: 'R' },
+    { q: -3, r: 0,  type: 'P' },
+    { q: -3, r: 1,  type: 'N' },
+    { q: -3, r: 2,  type: 'N' },
+    { q: -3, r: 3,  type: 'P' },
+    { q: -3, r: 4,  type: 'R' },
+    { q: -2, r: -2, type: 'p' }, // c1
+    { q: -2, r: -1, type: 'p' }, // c2
+    { q: -2, r: 0,  type: 'p' }, // c3
+    { q: -2, r: 1,  type: 'p' }, // c4
+    { q: -2, r: 2,  type: 'p' }, // c5
+    { q: -2, r: 3,  type: 'p' }, // c6
+    { q: -2, r: 4,  type: 'p' }  // c7
+  ];
+
+  for (const item of whiteSetup) {
+    board.set(coordKey(item.q, item.r), { type: item.type, color: 'w', hasMoved: false });
+
+    const mirrorQ = -item.q;
+    const mirrorR = item.r + item.q;
+    board.set(coordKey(mirrorQ, mirrorR), { type: item.type, color: 'b', hasMoved: false });
+  }
+
+  return board;
+}
+
+// ----------------------------------------------------------------------------
+// 4. 기물 이동 및 프리스타(Prism) 굴절 계산 엔진
+// ----------------------------------------------------------------------------
+function getValidMoves(board, q, r) {
+  const piece = board.get(coordKey(q, r));
+  if (!piece) return [];
+
+  const moves = [];
+  const { type, color } = piece;
+  const enemyColor = color === 'w' ? 'b' : 'w';
+
+  const addSlidingMoves = (dirs, maxSteps = 10) => {
+    for (const d of dirs) {
+      const path = [{ q, r }];
+      for (let step = 1; step <= maxSteps; step++) {
+        const nq = q + d.q * step;
+        const nr = r + d.r * step;
+        if (!isValidHex(nq, nr)) break;
+
+        const target = board.get(coordKey(nq, nr));
+        if (!target) {
+          path.push({ q: nq, r: nr });
+          moves.push({ toQ: nq, toR: nr, isCapture: false, isRefracted: false, path: [...path] });
+        } else {
+          if (target.color === enemyColor) {
+            path.push({ q: nq, r: nr });
+            moves.push({ toQ: nq, toR: nr, isCapture: true, isRefracted: false, path: [...path] });
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  switch (type) {
+    case 'R':
+      addSlidingMoves(ORTHO_DIRS);
+      break;
+
+    case 'B':
+      addSlidingMoves(DIAG_DIRS);
+      break;
+
+    case 'Q':
+      addSlidingMoves([...ORTHO_DIRS, ...DIAG_DIRS]);
+      break;
+
+    case 'K':
+      addSlidingMoves([...ORTHO_DIRS, ...DIAG_DIRS], 1);
+      break;
+
+    case 'N':
+      for (const d of KNIGHT_DIRS) {
+        const nq = q + d.q;
+        const nr = r + d.r;
+        if (!isValidHex(nq, nr)) continue;
+        const target = board.get(coordKey(nq, nr));
+        if (!target || target.color === enemyColor) {
+          moves.push({
+            toQ: nq,
+            toR: nr,
+            isCapture: Boolean(target),
+            isRefracted: false,
+            path: [{ q, r }, { q: nq, r: nr }]
+          });
+        }
+      }
+      break;
+
+    case 'P': {
+      const bestMoveMap = new Map();
+
+      for (let dirIdx = 0; dirIdx < 6; dirIdx++) {
+        const d1 = DIAG_DIRS[dirIdx];
+        const s1q = q + d1.q;
+        const s1r = r + d1.r;
+        if (!isValidHex(s1q, s1r)) continue;
+
+        const target1 = board.get(coordKey(s1q, s1r));
+
+        if (!target1) {
+          const key1 = coordKey(s1q, s1r);
+          if (!bestMoveMap.has(key1)) {
+            bestMoveMap.set(key1, {
+              toQ: s1q,
+              toR: s1r,
+              isCapture: false,
+              isRefracted: false,
+              path: [{ q, r }, { q: s1q, r: s1r }]
+            });
+          }
+
+          const s2q = s1q + d1.q;
+          const s2r = s1r + d1.r;
+          if (isValidHex(s2q, s2r)) {
+            const target2 = board.get(coordKey(s2q, s2r));
+            if (!target2 || target2.color === enemyColor) {
+              const key2 = coordKey(s2q, s2r);
+              if (!bestMoveMap.has(key2)) {
+                bestMoveMap.set(key2, {
+                  toQ: s2q,
+                  toR: s2r,
+                  isCapture: Boolean(target2),
+                  isRefracted: false,
+                  path: [{ q, r }, { q: s1q, r: s1r }, { q: s2q, r: s2r }]
+                });
+              }
+            }
+          }
+        } else if (target1.color === enemyColor) {
+          const key1 = coordKey(s1q, s1r);
+          bestMoveMap.set(key1, {
+            toQ: s1q,
+            toR: s1r,
+            isCapture: true,
+            isRefracted: false,
+            path: [{ q, r }, { q: s1q, r: s1r }]
+          });
+        } else if (target1.color === color) {
+          const slightTurnDirs = [
+            ORTHO_DIRS[dirIdx],
+            ORTHO_DIRS[(dirIdx + 1) % 6]
+          ];
+          for (const d2 of slightTurnDirs) {
+            const rq = s1q + d2.q;
+            const rr = s1r + d2.r;
+            if (!isValidHex(rq, rr)) continue;
+
+            const rTarget = board.get(coordKey(rq, rr));
+            if (!rTarget || rTarget.color === enemyColor) {
+              const rKey = coordKey(rq, rr);
+              const existing = bestMoveMap.get(rKey);
+              if (!existing || !existing.isRefracted) {
+                bestMoveMap.set(rKey, {
+                  toQ: rq,
+                  toR: rr,
+                  isCapture: Boolean(rTarget),
+                  isRefracted: true,
+                  mirrorPos: { q: s1q, r: s1r },
+                  path: [{ q, r }, { q: s1q, r: s1r }, { q: rq, r: rr }]
+                });
+              }
+            }
+          }
+        }
+      }
+
+      for (const m of bestMoveMap.values()) {
+        moves.push(m);
+      }
+      break;
+    }
+
+    case 'p': {
+      const forwardDirs = color === 'w'
+        ? [{ q: 1, r: 0 }, { q: 1, r: -1 }]
+        : [{ q: -1, r: 0 }, { q: -1, r: 1 }];
+
+      for (const fd of forwardDirs) {
+        const f1q = q + fd.q;
+        const f1r = r + fd.r;
+        if (!isValidHex(f1q, f1r)) continue;
+
+        if (!board.has(coordKey(f1q, f1r))) {
+          moves.push({
+            toQ: f1q,
+            toR: f1r,
+            isCapture: false,
+            isRefracted: false,
+            path: [{ q, r }, { q: f1q, r: f1r }]
+          });
+
+          if (!piece.hasMoved) {
+            const f2q = f1q + fd.q;
+            const f2r = f1r + fd.r;
+            if (isValidHex(f2q, f2r) && !board.has(coordKey(f2q, f2r))) {
+              moves.push({
+                toQ: f2q,
+                toR: f2r,
+                isCapture: false,
+                isRefracted: false,
+                path: [{ q, r }, { q: f1q, r: f1r }, { q: f2q, r: f2r }]
+              });
+            }
+          }
+        }
+      }
+
+      const captureDirs = color === 'w'
+        ? [{ q: 1, r: -2 }, { q: 1, r: 1 }]
+        : [{ q: -1, r: 2 }, { q: -1, r: -1 }];
+
+      for (const cd of captureDirs) {
+        const cq = q + cd.q;
+        const cr = r + cd.r;
+        if (!isValidHex(cq, cr)) continue;
+        const target = board.get(coordKey(cq, cr));
+        if (target && target.color === enemyColor) {
+          moves.push({
+            toQ: cq,
+            toR: cr,
+            isCapture: true,
+            isRefracted: false,
+            path: [{ q, r }, { q: cq, r: cr }]
+          });
+        }
+      }
+      break;
+    }
+  }
+
+  return moves;
+}
+
+function isPromotionSquare(color, q, r) {
+  // 반대쪽 끝 파일(백은 오른쪽 끝 I열: q === 4, 흑은 왼쪽 끝 A열: q === -4)에 도달했을 때만 승진
+  if (color === 'w') {
+    return q === BOARD_RADIUS;
+  } else {
+    return q === -BOARD_RADIUS;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 5. 게임 상태 관리 & 타이머 컨트롤러
+// ----------------------------------------------------------------------------
+const gameState = {
+  board: new Map(),
+  turn: 'w',
+  mode: 'ai',
+  playerColor: 'w',
+  difficulty: 'normal',
+  baseMinutes: 10,
+  incSeconds: 5,
+  timeLeft: { w: 600, b: 600 },
+  timerInterval: null,
+  selectedPos: null,
+  validMoves: [],
+  hoveredMove: null,
+  lastMove: null,
+  capturedBy: { w: [], b: [] },
+  moveCount: 0,
+  isGameOver: false,
+  pendingPromotion: null,
+  aiThinking: false,
+  history: [],
+  viewStep: 0,
+  analysisPhase: 'edit',
+  analysisBrush: 'w:P'
+};
+
+const layerTiles = document.getElementById('layer-tiles');
+const layerHighlights = document.getElementById('layer-highlights');
+const layerPieces = document.getElementById('layer-pieces');
+const layerRays = document.getElementById('layer-rays');
+
+function createSvgElement(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    el.setAttribute(k, v);
+  }
+  return el;
+}
+
+function renderBoardTiles() {
+  layerTiles.innerHTML = '';
+
+  for (let q = -BOARD_RADIUS; q <= BOARD_RADIUS; q++) {
+    const rMin = Math.max(-BOARD_RADIUS, -q - BOARD_RADIUS);
+    const rMax = Math.min(BOARD_RADIUS, -q + BOARD_RADIUS);
+
+    const topPos = hexToPixel(q, rMin);
+    const fileLabel = createSvgElement('text', {
+      x: topPos.x,
+      y: topPos.y - HEX_SIZE * 0.92,
+      'text-anchor': 'middle',
+      class: 'board-coord-label'
+    });
+    fileLabel.textContent = String.fromCharCode(65 + (q + BOARD_RADIUS));
+    layerTiles.appendChild(fileLabel);
+
+    for (let r = rMin; r <= rMax; r++) {
+      const { x, y } = hexToPixel(q, r);
+      const tileStyle = TILE_STYLES[getTileColorIndex(q, r)];
+
+      const poly = createSvgElement('polygon', {
+        points: getHexPolygonPoints(x, y),
+        fill: tileStyle.fill,
+        stroke: tileStyle.stroke,
+        'stroke-width': '1.8',
+        class: 'hex-tile',
+        'data-q': q,
+        'data-r': r
+      });
+
+      poly.addEventListener('click', () => handleHexClick(q, r));
+      poly.addEventListener('mouseenter', () => handleHexHover(q, r));
+      poly.addEventListener('mouseleave', () => handleHexHoverLeave());
+
+      layerTiles.appendChild(poly);
+
+      const cellLabel = createSvgElement('text', {
+        x: x,
+        y: y + HEX_SIZE * 0.68,
+        'text-anchor': 'middle',
+        'font-size': '8.5',
+        'font-weight': '600',
+        fill: tileStyle.name === '⚫' ? 'rgba(226,232,240,0.32)' : 'rgba(30,41,59,0.32)',
+        'pointer-events': 'none'
+      });
+      cellLabel.textContent = formatHexAlgebraic(q, r).toLowerCase();
+      layerTiles.appendChild(cellLabel);
+    }
+  }
+}
+
+function renderDynamicLayers() {
+  layerHighlights.innerHTML = '';
+  layerPieces.innerHTML = '';
+  layerRays.innerHTML = '';
+
+  if (gameState.lastMove) {
+    const positions = [
+      { q: gameState.lastMove.fromQ, r: gameState.lastMove.fromR },
+      { q: gameState.lastMove.toQ, r: gameState.lastMove.toR }
+    ];
+    for (const pos of positions) {
+      const { x, y } = hexToPixel(pos.q, pos.r);
+      const lastHighlight = createSvgElement('polygon', {
+        points: getHexPolygonPoints(x, y, HEX_SIZE - 3),
+        fill: 'rgba(168, 85, 247, 0.22)',
+        stroke: '#a855f7',
+        'stroke-width': '2.5',
+        'pointer-events': 'none'
+      });
+      layerHighlights.appendChild(lastHighlight);
+    }
+  }
+
+  if (gameState.selectedPos) {
+    const { x, y } = hexToPixel(gameState.selectedPos.q, gameState.selectedPos.r);
+    const selPoly = createSvgElement('polygon', {
+      points: getHexPolygonPoints(x, y, HEX_SIZE - 2.5),
+      fill: 'rgba(245, 158, 11, 0.34)',
+      stroke: '#f59e0b',
+      'stroke-width': '3.2',
+      'pointer-events': 'none'
+    });
+    layerHighlights.appendChild(selPoly);
+  }
+
+  for (const move of gameState.validMoves) {
+    const { x, y } = hexToPixel(move.toQ, move.toR);
+
+    if (move.isCapture && move.isRefracted) {
+      const ambushRing = createSvgElement('circle', {
+        cx: x, cy: y, r: HEX_SIZE * 0.64,
+        fill: 'rgba(239, 68, 68, 0.28)',
+        stroke: '#ef4444',
+        'stroke-width': '3'
+      });
+      layerHighlights.appendChild(ambushRing);
+
+      const innerRing = createSvgElement('circle', {
+        cx: x, cy: y, r: HEX_SIZE * 0.48,
+        fill: 'none',
+        stroke: '#22d3ee',
+        'stroke-width': '1.8',
+        'stroke-dasharray': '3 3'
+      });
+      layerHighlights.appendChild(innerRing);
+    } else if (move.isCapture) {
+      const capRing = createSvgElement('circle', {
+        cx: x, cy: y, r: HEX_SIZE * 0.6,
+        fill: 'rgba(239, 68, 68, 0.26)',
+        stroke: '#ef4444',
+        'stroke-width': '2.8'
+      });
+      layerHighlights.appendChild(capRing);
+    } else if (move.isRefracted) {
+      const diamond = createSvgElement('polygon', {
+        points: `${x},${y - 10} ${x + 10},${y} ${x},${y + 10} ${x - 10},${y}`,
+        fill: '#06b6d4',
+        stroke: '#ecfeff',
+        'stroke-width': '1.8'
+      });
+      layerHighlights.appendChild(diamond);
+    } else {
+      const dot = createSvgElement('circle', {
+        cx: x, cy: y, r: '6.5',
+        fill: 'rgba(15, 23, 42, 0.62)',
+        stroke: '#ffffff',
+        'stroke-width': '1.8'
+      });
+      layerHighlights.appendChild(dot);
+    }
+  }
+
+  for (const [key, piece] of gameState.board.entries()) {
+    const [q, r] = key.split(',').map(Number);
+    const { x, y } = hexToPixel(q, r);
+    const info = PIECE_INFO[piece.type];
+    const isWhite = piece.color === 'w';
+    const isPrism = piece.type === 'P';
+
+    const g = createSvgElement('g', {
+      transform: `translate(${x}, ${y})`,
+      'pointer-events': 'none'
+    });
+
+    const base = createSvgElement('circle', {
+      cx: 0, cy: 0, r: HEX_SIZE * 0.56,
+      fill: currentPieceStyle === 'neon'
+        ? (isWhite ? '#0f172a' : '#020617')
+        : (currentPieceStyle === 'royal'
+          ? (isWhite ? '#fffbeb' : '#1c1917')
+          : (isWhite ? '#ffffff' : '#0f172a')),
+      stroke: currentPieceStyle === 'neon'
+        ? (isPrism ? '#22d3ee' : (isWhite ? '#38bdf8' : '#f43f5e'))
+        : (currentPieceStyle === 'royal'
+          ? (isPrism ? '#06b6d4' : '#f59e0b')
+          : (isPrism ? '#06b6d4' : (isWhite ? '#334155' : '#cbd5e1'))),
+      'stroke-width': isPrism ? '3.2' : '2.4'
+    });
+    g.appendChild(base);
+
+    if (isPrism || currentPieceStyle !== 'classic') {
+      const prismRing = createSvgElement('circle', {
+        cx: 0, cy: 0, r: HEX_SIZE * 0.43,
+        fill: 'none',
+        stroke: currentPieceStyle === 'neon'
+          ? (isWhite ? 'rgba(56, 189, 248, 0.55)' : 'rgba(244, 63, 94, 0.55)')
+          : (currentPieceStyle === 'royal'
+            ? 'rgba(245, 158, 11, 0.55)'
+            : (isWhite ? 'rgba(6, 182, 212, 0.45)' : 'rgba(34, 211, 238, 0.5)')),
+        'stroke-width': '1.2'
+      });
+      g.appendChild(prismRing);
+    }
+
+    const text = createSvgElement('text', {
+      x: 0,
+      y: 9.5,
+      'text-anchor': 'middle',
+      'font-size': isPrism ? '27' : '28',
+      'font-weight': 'bold',
+      fill: currentPieceStyle === 'neon'
+        ? (isPrism ? '#22d3ee' : (isWhite ? '#7dd3fc' : '#fda4af'))
+        : (currentPieceStyle === 'royal'
+          ? (isPrism ? '#0284c7' : (isWhite ? '#92400e' : '#fcd34d'))
+          : (isPrism
+            ? (isWhite ? '#0284c7' : '#22d3ee')
+            : (isWhite ? '#0f172a' : '#f8fafc')))
+    });
+    text.textContent = isWhite ? info.symbolW : info.symbolB;
+    g.appendChild(text);
+
+    layerPieces.appendChild(g);
+  }
+
+  renderRayLayer();
+}
+
+function renderRayLayer() {
+  layerRays.innerHTML = '';
+
+  const selectedPiece = gameState.selectedPos
+    ? gameState.board.get(coordKey(gameState.selectedPos.q, gameState.selectedPos.r))
+    : null;
+  const isPrismSelected = selectedPiece?.type === 'P';
+
+  if (isPrismSelected && gameState.validMoves.length > 0) {
+    for (const move of gameState.validMoves) {
+      if (!move.isRefracted || !move.path || move.path.length < 2) continue;
+      if (gameState.hoveredMove && gameState.hoveredMove.toQ === move.toQ && gameState.hoveredMove.toR === move.toR) {
+        continue;
+      }
+
+      const previewColor = move.isCapture ? 'rgba(239, 68, 68, 0.55)' : 'rgba(34, 211, 238, 0.45)';
+      for (let i = 0; i < move.path.length - 1; i++) {
+        const p1 = hexToPixel(move.path[i].q, move.path[i].r);
+        const p2 = hexToPixel(move.path[i + 1].q, move.path[i + 1].r);
+        layerRays.appendChild(createSvgElement('line', {
+          x1: p1.x, y1: p1.y,
+          x2: p2.x, y2: p2.y,
+          stroke: previewColor,
+          'stroke-width': '2',
+          'stroke-linecap': 'round',
+          class: 'prism-ray'
+        }));
+      }
+
+      if (move.mirrorPos) {
+        const mp = hexToPixel(move.mirrorPos.q, move.mirrorPos.r);
+        layerRays.appendChild(createSvgElement('circle', {
+          cx: mp.x, cy: mp.y, r: HEX_SIZE * 0.62,
+          fill: 'none',
+          stroke: 'rgba(34, 211, 238, 0.45)',
+          'stroke-width': '1.6',
+          'stroke-dasharray': '3 3',
+          'pointer-events': 'none'
+        }));
+      }
+    }
+  }
+
+  const m = gameState.hoveredMove;
+  if (!m || !m.path || m.path.length < 2) return;
+  if (!isPrismSelected && !m.isRefracted) return;
+
+  const strokeColor = m.isCapture ? '#ef4444' : (m.isRefracted ? '#22d3ee' : '#fbbf24');
+  const markerId = m.isCapture ? 'url(#arrow-red)' : (m.isRefracted ? 'url(#arrow-cyan)' : 'url(#arrow-amber)');
+
+  for (let i = 0; i < m.path.length - 1; i++) {
+    const p1 = hexToPixel(m.path[i].q, m.path[i].r);
+    const p2 = hexToPixel(m.path[i + 1].q, m.path[i + 1].r);
+    const isLastSeg = i === m.path.length - 2;
+
+    const lineAttrs = {
+      x1: p1.x, y1: p1.y,
+      x2: p2.x, y2: p2.y,
+      stroke: strokeColor,
+      'stroke-width': m.isRefracted ? '3.8' : '3',
+      'stroke-linecap': 'round',
+      class: 'prism-ray'
+    };
+    if (isLastSeg) {
+      lineAttrs['marker-end'] = markerId;
+    }
+    layerRays.appendChild(createSvgElement('line', lineAttrs));
+  }
+
+  if (m.isRefracted && m.mirrorPos) {
+    const mp = hexToPixel(m.mirrorPos.q, m.mirrorPos.r);
+    layerRays.appendChild(createSvgElement('circle', {
+      cx: mp.x, cy: mp.y, r: HEX_SIZE * 0.66,
+      fill: 'rgba(34, 211, 238, 0.16)',
+      stroke: '#22d3ee',
+      'stroke-width': '2.6',
+      'pointer-events': 'none'
+    }));
+
+    const badge = createSvgElement('text', {
+      x: mp.x,
+      y: mp.y - HEX_SIZE * 0.72,
+      'text-anchor': 'middle',
+      'font-size': '10.5',
+      'font-weight': '800',
+      fill: '#22d3ee',
+      stroke: '#0f172a',
+      'stroke-width': '3',
+      'paint-order': 'stroke',
+      'pointer-events': 'none'
+    });
+    badge.textContent = '굴절 반사';
+    layerRays.appendChild(badge);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 7. 사용자 인터랙션 (클릭, 호버, 이동 실행, 승진)
+// ----------------------------------------------------------------------------
+function handleHexHover(q, r) {
+  if (gameState.isGameOver || gameState.aiThinking) return;
+  const move = gameState.validMoves.find(m => m.toQ === q && m.toR === r) || null;
+  if (move !== gameState.hoveredMove) {
+    gameState.hoveredMove = move;
+    renderRayLayer();
+  }
+}
+
+function handleHexHoverLeave() {
+  if (gameState.hoveredMove) {
+    gameState.hoveredMove = null;
+    renderRayLayer();
+  }
+}
+
+function handleHexClick(q, r) {
+  if (gameState.isGameOver || gameState.pendingPromotion || gameState.aiThinking) return;
+
+  if (gameState.mode === 'analysis' && gameState.analysisPhase === 'edit') {
+    const key = coordKey(q, r);
+    if (gameState.analysisBrush === 'erase') {
+      if (gameState.board.has(key)) {
+        gameState.board.delete(key);
+        sound.playMoveTick(false);
+      }
+    } else {
+      const [bColor, bType] = gameState.analysisBrush.split(':');
+      const existing = gameState.board.get(key);
+      if (existing && existing.color === bColor && existing.type === bType) {
+        gameState.board.delete(key);
+        sound.playMoveTick(false);
+      } else {
+        gameState.board.set(key, { type: bType, color: bColor, hasMoved: false });
+        sound.playMoveTick(bType === 'P');
+      }
+    }
+    gameState.history = [];
+    recordSnapshot();
+    updateCapturedUI();
+    renderDynamicLayers();
+    return;
+  }
+
+  if (gameState.viewStep < gameState.history.length - 1) return;
+  if (gameState.mode === 'ai' && gameState.turn !== gameState.playerColor) return;
+
+  const clickedMove = gameState.validMoves.find(m => m.toQ === q && m.toR === r);
+  if (clickedMove && gameState.selectedPos) {
+    executeMove(gameState.selectedPos.q, gameState.selectedPos.r, clickedMove);
+    return;
+  }
+
+  const piece = gameState.board.get(coordKey(q, r));
+  const canSelectPiece = piece && (
+    gameState.mode === 'analysis' ||
+    piece.color === gameState.turn
+  );
+
+  if (canSelectPiece) {
+    if (gameState.selectedPos && gameState.selectedPos.q === q && gameState.selectedPos.r === r) {
+      deselectPiece();
+    } else {
+      selectPiece(q, r);
+    }
+  } else {
+    deselectPiece();
+  }
+}
+
+function selectPiece(q, r) {
+  gameState.selectedPos = { q, r };
+  gameState.validMoves = getValidMoves(gameState.board, q, r);
+  gameState.hoveredMove = null;
+
+  const piece = gameState.board.get(coordKey(q, r));
+  const prismBox = document.getElementById('prism-hint-box');
+  if (piece && piece.type === 'P') {
+    prismBox.classList.remove('hidden');
+  } else {
+    prismBox.classList.add('hidden');
+  }
+
+  renderDynamicLayers();
+}
+
+function deselectPiece() {
+  gameState.selectedPos = null;
+  gameState.validMoves = [];
+  gameState.hoveredMove = null;
+  document.getElementById('prism-hint-box').classList.add('hidden');
+  renderDynamicLayers();
+}
+
+function triggerPrismRefractEffect(fromQ, fromR, move) {
+  if (!move.isRefracted) return;
+  const dest = hexToPixel(move.toQ, move.toR);
+  const shock = createSvgElement('circle', {
+    cx: dest.x,
+    cy: dest.y,
+    r: HEX_SIZE * 0.58,
+    fill: 'none',
+    stroke: move.isCapture ? '#ef4444' : '#22d3ee',
+    'stroke-width': '3.5',
+    class: 'prism-shockwave'
+  });
+  layerRays.appendChild(shock);
+
+  if (move.mirrorPos) {
+    const mp = hexToPixel(move.mirrorPos.q, move.mirrorPos.r);
+    const mirrorFlash = createSvgElement('circle', {
+      cx: mp.x,
+      cy: mp.y,
+      r: HEX_SIZE * 0.52,
+      fill: 'rgba(34, 211, 238, 0.35)',
+      stroke: '#22d3ee',
+      'stroke-width': '2.5',
+      class: 'prism-shockwave'
+    });
+    layerRays.appendChild(mirrorFlash);
+  }
+}
+
+function executeMove(fromQ, fromR, move) {
+  const fromKey = coordKey(fromQ, fromR);
+  const toKey = coordKey(move.toQ, move.toR);
+  const movingPiece = gameState.board.get(fromKey);
+  if (!movingPiece) return;
+
+  const targetPiece = gameState.board.get(toKey);
+
+  gameState.board.delete(fromKey);
+  movingPiece.hasMoved = true;
+  gameState.board.set(toKey, movingPiece);
+  gameState.lastMove = { fromQ, fromR, toQ: move.toQ, toR: move.toR };
+
+  if (targetPiece) {
+    gameState.capturedBy[movingPiece.color].push(targetPiece);
+    updateCapturedUI();
+
+    if (targetPiece.type === 'K') {
+      sound.playKingCaptureThud();
+      recordSnapshot();
+      addMoveLog(movingPiece, fromQ, fromR, move, targetPiece);
+      deselectPiece();
+      triggerPrismRefractEffect(fromQ, fromR, move);
+
+      if (gameState.mode !== 'analysis') {
+        endGame(
+          movingPiece.color,
+          `${movingPiece.color === 'w' ? '백(White)' : '흑(Black)'}이 상대방의 킹(King)을 잡았습니다!`
+        );
+        return;
+      }
+    }
+  }
+
+  sound.playMoveTick(move.isRefracted);
+
+  if (movingPiece.type === 'p' && isPromotionSquare(movingPiece.color, move.toQ, move.toR)) {
+    const aiColor = gameState.playerColor === 'w' ? 'b' : 'w';
+    if (gameState.mode === 'ai' && movingPiece.color === aiColor) {
+      movingPiece.type = Math.random() < 0.35 ? 'P' : 'Q';
+      recordSnapshot();
+      addMoveLog(movingPiece, fromQ, fromR, move, targetPiece);
+      finishTurn();
+      return;
+    } else {
+      gameState.pendingPromotion = {
+        q: move.toQ,
+        r: move.toR,
+        fromQ,
+        fromR,
+        move,
+        targetPiece
+      };
+      deselectPiece();
+      document.getElementById('modal-promotion').classList.remove('hidden');
+      return;
+    }
+  }
+
+  recordSnapshot();
+  addMoveLog(movingPiece, fromQ, fromR, move, targetPiece);
+  finishTurn();
+  triggerPrismRefractEffect(fromQ, fromR, move);
+}
+
+function finishTurn() {
+  if (gameState.mode === 'analysis') {
+    deselectPiece();
+    updateTurnUI();
+    return;
+  }
+
+  const prevTurn = gameState.turn;
+  gameState.timeLeft[prevTurn] += gameState.incSeconds;
+  updateTimerUI();
+
+  gameState.turn = prevTurn === 'w' ? 'b' : 'w';
+  deselectPiece();
+  updateTurnUI();
+
+  const aiColor = gameState.playerColor === 'w' ? 'b' : 'w';
+  if (!gameState.isGameOver && gameState.mode === 'ai' && gameState.turn === aiColor) {
+    gameState.aiThinking = true;
+    const badgeEl = document.getElementById(aiColor === 'b' ? 'badge-black-turn' : 'badge-white-turn');
+    if (badgeEl) badgeEl.classList.remove('hidden');
+    setTimeout(() => {
+      makeAIMove();
+      gameState.aiThinking = false;
+    }, 950);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 8. AI 대전 엔진
+// ----------------------------------------------------------------------------
+function cloneBoard(board) {
+  const copy = new Map();
+  for (const [k, v] of board.entries()) {
+    copy.set(k, { ...v });
+  }
+  return copy;
+}
+
+function evaluateBoard(board, aiColor = 'b') {
+  let score = 0;
+  for (const [key, piece] of board.entries()) {
+    const [q, r] = key.split(',').map(Number);
+    const val = PIECE_INFO[piece.type].value;
+    const distFromCenter = (Math.abs(q) + Math.abs(r) + Math.abs(-q - r)) / 2;
+    const centerBonus = (4 - distFromCenter) * 8;
+    const total = val + centerBonus;
+    score += piece.color === aiColor ? total : -total;
+  }
+  return score;
+}
+
+function getAllColorMoves(board, color) {
+  const all = [];
+  for (const [key, piece] of board.entries()) {
+    if (piece.color !== color) continue;
+    const [q, r] = key.split(',').map(Number);
+    const moves = getValidMoves(board, q, r);
+    for (const m of moves) {
+      all.push({ fromQ: q, fromR: r, piece, move: m });
+    }
+  }
+  return all;
+}
+
+function applyVirtualMove(board, item) {
+  const next = cloneBoard(board);
+  const fKey = coordKey(item.fromQ, item.fromR);
+  const tKey = coordKey(item.move.toQ, item.move.toR);
+  const p = next.get(fKey);
+  next.delete(fKey);
+  if (p) {
+    p.hasMoved = true;
+    if (p.type === 'p' && isPromotionSquare(p.color, item.move.toQ, item.move.toR)) {
+      p.type = 'Q';
+    }
+    next.set(tKey, p);
+  }
+  return next;
+}
+
+function makeAIMove() {
+  if (gameState.isGameOver) return;
+  const aiColor = gameState.playerColor === 'w' ? 'b' : 'w';
+  const humanColor = gameState.playerColor;
+  const aiMoves = getAllColorMoves(gameState.board, aiColor);
+  if (aiMoves.length === 0) {
+    endGame(humanColor, 'AI가 더 이상 움직일 수 없어 승리했습니다!');
+    return;
+  }
+
+  for (const item of aiMoves) {
+    const target = gameState.board.get(coordKey(item.move.toQ, item.move.toR));
+    if (target && target.type === 'K') {
+      executeMove(item.fromQ, item.fromR, item.move);
+      return;
+    }
+  }
+
+  let chosen = null;
+
+  if (gameState.difficulty === 'easy') {
+    const captures = aiMoves.filter(m => m.move.isCapture);
+    if (captures.length > 0 && Math.random() < 0.4) {
+      chosen = captures[Math.floor(Math.random() * captures.length)];
+    } else {
+      chosen = aiMoves[Math.floor(Math.random() * aiMoves.length)];
+    }
+  } else if (gameState.difficulty === 'normal') {
+    let bestScore = -Infinity;
+    let bestList = [];
+    for (const item of aiMoves) {
+      const nextBoard = applyVirtualMove(gameState.board, item);
+      let sc = evaluateBoard(nextBoard, aiColor) + (Math.random() * 25 - 12.5);
+      if (item.move.isRefracted && item.move.isCapture) sc += 60;
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestList = [item];
+      } else if (Math.abs(sc - bestScore) < 5) {
+        bestList.push(item);
+      }
+    }
+    chosen = bestList[Math.floor(Math.random() * bestList.length)];
+  } else {
+    let bestScore = -Infinity;
+    let bestItem = aiMoves[0];
+
+    aiMoves.sort((a, b) => (b.move.isCapture ? 1 : 0) - (a.move.isCapture ? 1 : 0));
+    const candidates = aiMoves.slice(0, 28);
+
+    for (const item of candidates) {
+      const boardAfterAI = applyVirtualMove(gameState.board, item);
+      const humanReplies = getAllColorMoves(boardAfterAI, humanColor);
+
+      let worstReplyScore = Infinity;
+      if (humanReplies.length === 0) {
+        worstReplyScore = 99999;
+      } else {
+        humanReplies.sort((a, b) => {
+          const targetA = boardAfterAI.get(coordKey(a.move.toQ, a.move.toR));
+          const targetB = boardAfterAI.get(coordKey(b.move.toQ, b.move.toR));
+          const scoreA = targetA?.type === 'K' ? 100 : (a.move.isCapture ? 10 : 0);
+          const scoreB = targetB?.type === 'K' ? 100 : (b.move.isCapture ? 10 : 0);
+          return scoreB - scoreA;
+        });
+        const topReplies = humanReplies.slice(0, 14);
+        for (const rep of topReplies) {
+          const targetOnRep = boardAfterAI.get(coordKey(rep.move.toQ, rep.move.toR));
+          if (targetOnRep && targetOnRep.type === 'K') {
+            worstReplyScore = -99999;
+            break;
+          }
+          const boardAfterHuman = applyVirtualMove(boardAfterAI, rep);
+          const evalVal = evaluateBoard(boardAfterHuman, aiColor);
+          if (evalVal < worstReplyScore) {
+            worstReplyScore = evalVal;
+          }
+        }
+      }
+
+      if (item.move.isRefracted && item.move.isCapture) worstReplyScore += 45;
+
+      if (worstReplyScore > bestScore) {
+        bestScore = worstReplyScore;
+        bestItem = item;
+      }
+    }
+    chosen = bestItem;
+  }
+
+  if (chosen) {
+    executeMove(chosen.fromQ, chosen.fromR, chosen.move);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 9. UI 업데이트, 대국 복기(History), 무르기(Undo), 타이머 및 모달 이벤트 핸들러
+// ----------------------------------------------------------------------------
+function recordSnapshot() {
+  gameState.history.push({
+    board: cloneBoard(gameState.board),
+    turn: gameState.turn,
+    lastMove: gameState.lastMove ? { ...gameState.lastMove } : null,
+    capturedBy: {
+      w: gameState.capturedBy.w.map(p => ({ ...p })),
+      b: gameState.capturedBy.b.map(p => ({ ...p }))
+    }
+  });
+  gameState.viewStep = gameState.history.length - 1;
+  updateReviewControls();
+}
+
+function undoLastMove() {
+  if (gameState.aiThinking || gameState.pendingPromotion) return;
+  if (gameState.history.length <= 1) return;
+
+  let stepsBack = 1;
+  if (gameState.mode === 'ai' && gameState.history.length >= 3 && gameState.turn === gameState.playerColor) {
+    stepsBack = 2;
+  }
+
+  const targetIdx = Math.max(0, gameState.history.length - 1 - stepsBack);
+  gameState.history = gameState.history.slice(0, targetIdx + 1);
+  const snap = gameState.history[targetIdx];
+
+  gameState.board = cloneBoard(snap.board);
+  gameState.lastMove = snap.lastMove ? { ...snap.lastMove } : null;
+  gameState.capturedBy = {
+    w: snap.capturedBy.w.map(p => ({ ...p })),
+    b: snap.capturedBy.b.map(p => ({ ...p }))
+  };
+  gameState.turn = gameState.mode === 'ai' ? gameState.playerColor : (targetIdx % 2 === 0 ? 'w' : 'b');
+  gameState.isGameOver = false;
+  gameState.viewStep = targetIdx;
+  gameState.moveCount = targetIdx;
+
+  const logEl = document.getElementById('move-log');
+  const items = logEl.querySelectorAll('.move-log-item');
+  items.forEach(item => {
+    if (Number(item.dataset.step) > targetIdx) {
+      item.remove();
+    }
+  });
+  if (targetIdx === 0) {
+    logEl.innerHTML = '<div class="text-slate-500 italic">수를 물렸습니다. 다시 첫 수를 두어 보세요!</div>';
+  }
+
+  deselectPiece();
+  updateCapturedUI();
+  updateTurnUI();
+  updateReviewControls();
+  renderDynamicLayers();
+  sound.playMoveTick(false);
+}
+
+function copyMoveHistoryText() {
+  const items = Array.from(document.querySelectorAll('.move-log-item')).map(el =>
+    el.querySelector('span')?.textContent?.trim() || ''
+  );
+  const header = `[헥사체스 HexaChess 대국 기보] (${document.getElementById('mode-display').textContent})`;
+  const body = items.length > 0 ? items.join('\n') : '아직 기록된 수가 없습니다.';
+  const fullText = `${header}\n${body}`;
+
+  const textarea = document.createElement('textarea');
+  textarea.value = fullText;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    const statusMsg = document.getElementById('status-message');
+    const prevText = statusMsg.textContent;
+    statusMsg.textContent = '📋 대국 기보가 클립보드에 복사되었습니다!';
+    setTimeout(() => {
+      if (statusMsg.textContent.includes('복사되었습니다')) {
+        statusMsg.textContent = prevText;
+      }
+    }, 2200);
+  } catch (e) {}
+  document.body.removeChild(textarea);
+}
+
+function goToHistoryStep(stepIndex) {
+  if (gameState.history.length === 0) return;
+  const clamped = Math.max(0, Math.min(stepIndex, gameState.history.length - 1));
+  gameState.viewStep = clamped;
+  const snap = gameState.history[clamped];
+
+  gameState.board = cloneBoard(snap.board);
+  gameState.lastMove = snap.lastMove ? { ...snap.lastMove } : null;
+  gameState.capturedBy = {
+    w: snap.capturedBy.w.map(p => ({ ...p })),
+    b: snap.capturedBy.b.map(p => ({ ...p }))
+  };
+
+  deselectPiece();
+  updateCapturedUI();
+  updateReviewControls();
+  renderDynamicLayers();
+
+  document.querySelectorAll('.move-log-item').forEach(el => {
+    const idx = Number(el.dataset.step);
+    if (idx === clamped) {
+      el.classList.add('bg-amber-500/25', 'border', 'border-amber-400/60');
+    } else {
+      el.classList.remove('bg-amber-500/25', 'border', 'border-amber-400/60');
+    }
+  });
+}
+
+function updateReviewControls() {
+  const totalMoves = Math.max(0, gameState.history.length - 1);
+  const label = document.getElementById('review-step-label');
+  if (label) label.textContent = `${gameState.viewStep} / ${totalMoves}`;
+
+  const btnFirst = document.getElementById('btn-rev-first');
+  const btnPrev = document.getElementById('btn-rev-prev');
+  const btnNext = document.getElementById('btn-rev-next');
+  const btnLast = document.getElementById('btn-rev-last');
+  const banner = document.getElementById('review-mode-banner');
+
+  if (btnFirst) btnFirst.disabled = gameState.viewStep <= 0;
+  if (btnPrev) btnPrev.disabled = gameState.viewStep <= 0;
+  if (btnNext) btnNext.disabled = gameState.viewStep >= totalMoves;
+  if (btnLast) btnLast.disabled = gameState.viewStep >= totalMoves;
+
+  const btnUndo = document.getElementById('btn-undo-move');
+  if (btnUndo) {
+    btnUndo.disabled = totalMoves === 0 || gameState.aiThinking;
+  }
+
+  if (banner) {
+    if (gameState.viewStep < totalMoves) {
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+}
+
+function formatSeconds(sec) {
+  const s = Math.max(0, sec);
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+}
+
+function updateTimerUI() {
+  const elW = document.getElementById('timer-white');
+  const elB = document.getElementById('timer-black');
+  elW.textContent = formatSeconds(gameState.timeLeft.w);
+  elB.textContent = formatSeconds(gameState.timeLeft.b);
+
+  elW.classList.toggle('text-red-400', gameState.timeLeft.w <= 30);
+  elB.classList.toggle('text-red-400', gameState.timeLeft.b <= 30);
+}
+
+function startClock() {
+  stopClock();
+  if (gameState.mode === 'analysis') return;
+  gameState.timerInterval = setInterval(() => {
+    if (gameState.isGameOver || gameState.pendingPromotion) return;
+    const active = gameState.turn;
+    gameState.timeLeft[active] -= 1;
+    updateTimerUI();
+
+    if (gameState.timeLeft[active] <= 0) {
+      const winner = active === 'w' ? 'b' : 'w';
+      const loserName = active === 'w' ? '백(White)' : '흑(Black)';
+      endGame(winner, `${loserName}의 제한 시간이 초과되었습니다!`);
+    }
+  }, 1000);
+}
+
+function stopClock() {
+  if (gameState.timerInterval) {
+    clearInterval(gameState.timerInterval);
+    gameState.timerInterval = null;
+  }
+}
+
+function updateTurnUI() {
+  const cardW = document.getElementById('card-white');
+  const cardB = document.getElementById('card-black');
+  const badgeW = document.getElementById('badge-white-turn');
+  const badgeB = document.getElementById('badge-black-turn');
+  const statusMsg = document.getElementById('status-message');
+
+  if (gameState.mode === 'analysis') {
+    cardW.classList.replace('border-slate-700', 'border-cyan-400');
+    cardB.classList.replace('border-slate-700', 'border-cyan-400');
+    badgeW.classList.remove('hidden');
+    badgeB.classList.remove('hidden');
+    badgeW.textContent = '자유 실험';
+    badgeB.textContent = '자유 실험';
+    statusMsg.textContent = gameState.analysisPhase === 'edit'
+      ? '🧪 [배치 편집 중] 팔레트에서 기물을 고른 뒤 보드 칸을 클릭해 원하는 대로 배치하세요.'
+      : '🧪 [자유 테스트 중] 백/흑 어느 기물이든 클릭해서 이동 경로와 프리스타 굴절을 실험해 보세요!';
+    return;
+  }
+
+  const isMyTurn = gameState.mode === 'pvp' || gameState.turn === gameState.playerColor;
+  if (gameState.turn === 'w') {
+    cardW.classList.replace('border-slate-700', 'border-amber-400');
+    cardW.classList.replace('border-cyan-400', 'border-amber-400');
+    cardB.classList.replace('border-amber-400', 'border-slate-700');
+    cardB.classList.replace('border-cyan-400', 'border-slate-700');
+    badgeW.classList.remove('hidden');
+    badgeW.textContent = gameState.mode === 'ai' && gameState.playerColor === 'b' ? 'AI 생각 중...' : '백 차례';
+    badgeB.classList.add('hidden');
+    statusMsg.textContent = isMyTurn
+      ? '백(White)의 차례입니다. 기물을 선택하세요.'
+      : '백(AI)이 다음 수를 계산하고 있습니다...';
+  } else {
+    cardB.classList.replace('border-slate-700', 'border-amber-400');
+    cardB.classList.replace('border-cyan-400', 'border-amber-400');
+    cardW.classList.replace('border-amber-400', 'border-slate-700');
+    cardW.classList.replace('border-cyan-400', 'border-slate-700');
+    badgeB.classList.remove('hidden');
+    badgeB.textContent = gameState.mode === 'ai' && gameState.playerColor === 'w' ? 'AI 생각 중...' : '흑 차례';
+    badgeW.classList.add('hidden');
+    statusMsg.textContent = isMyTurn
+      ? '흑(Black)의 차례입니다. 기물을 선택하세요.'
+      : '흑(AI)이 다음 수를 계산하고 있습니다...';
+  }
+}
+
+function updateCapturedUI() {
+  const boxW = document.getElementById('captured-by-white');
+  const boxB = document.getElementById('captured-by-black');
+
+  boxW.innerHTML = gameState.capturedBy.w
+    .map(p => `<span title="${PIECE_INFO[p.type].name} (${PIECE_INFO[p.type].points}점)">${PIECE_INFO[p.type].symbolB}</span>`)
+    .join('');
+  boxB.innerHTML = gameState.capturedBy.b
+    .map(p => `<span title="${PIECE_INFO[p.type].name} (${PIECE_INFO[p.type].points}점)">${PIECE_INFO[p.type].symbolW}</span>`)
+    .join('');
+
+  let boardPointsW = 0;
+  let boardPointsB = 0;
+  for (const p of gameState.board.values()) {
+    const pts = PIECE_INFO[p.type]?.points || 0;
+    if (p.color === 'w') boardPointsW += pts;
+    else boardPointsB += pts;
+  }
+
+  const capPointsW = gameState.capturedBy.w.reduce((sum, p) => sum + (PIECE_INFO[p.type]?.points || 0), 0);
+  const capPointsB = gameState.capturedBy.b.reduce((sum, p) => sum + (PIECE_INFO[p.type]?.points || 0), 0);
+
+  const badgeW = document.getElementById('score-white-badge');
+  const badgeB = document.getElementById('score-black-badge');
+  const diff = boardPointsW - boardPointsB;
+
+  if (badgeW) {
+    badgeW.textContent = diff > 0 ? `기물 ${boardPointsW}점 (+${diff})` : `기물 ${boardPointsW}점`;
+  }
+  if (badgeB) {
+    badgeB.textContent = diff < 0 ? `기물 ${boardPointsB}점 (+${Math.abs(diff)})` : `기물 ${boardPointsB}점`;
+  }
+
+  const capElW = document.getElementById('cap-score-white');
+  const capElB = document.getElementById('cap-score-black');
+  if (capElW) capElW.textContent = `+${capPointsW}점`;
+  if (capElB) capElB.textContent = `+${capPointsB}점`;
+}
+
+function addMoveLog(piece, fromQ, fromR, move, captured) {
+  const logEl = document.getElementById('move-log');
+  if (gameState.moveCount === 0) logEl.innerHTML = '';
+  gameState.moveCount += 1;
+  const stepNumber = gameState.history.length - 1;
+
+  const sideBadge = piece.color === 'w'
+    ? '<span class="text-white font-bold">[백]</span>'
+    : '<span class="text-amber-400 font-bold">[흑]</span>';
+  const info = PIECE_INFO[piece.type];
+  const refractTag = move.isRefracted ? '<span class="text-cyan-400 font-bold"> [30°굴절]</span>' : '';
+  const capTag = captured ? `<span class="text-red-400"> ×${PIECE_INFO[captured.type].name}</span>` : '';
+  const coordText = `${formatHexAlgebraic(fromQ, fromR).toLowerCase()}→${formatHexAlgebraic(move.toQ, move.toR).toLowerCase()}`;
+
+  const row = document.createElement('div');
+  row.dataset.step = String(stepNumber);
+  row.title = '클릭하면 이 수의 보드 상태로 복기합니다';
+  row.className = 'move-log-item flex items-center justify-between py-1 px-2 rounded-lg bg-slate-900/60 hover:bg-slate-700/70 cursor-pointer transition';
+  row.innerHTML = `
+    <span>${gameState.moveCount}. ${sideBadge} ${info.name} <span class="text-slate-400">${coordText}</span>${refractTag}${capTag}</span>
+    <span class="text-[10px] text-slate-400">복기</span>
+  `;
+  row.addEventListener('click', () => goToHistoryStep(stepNumber));
+
+  logEl.appendChild(row);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function endGame(winnerColor, reasonText) {
+  gameState.isGameOver = true;
+  stopClock();
+
+  const titleEl = document.getElementById('gameover-title');
+  const reasonEl = document.getElementById('gameover-reason');
+  const iconEl = document.getElementById('gameover-icon');
+
+  if (winnerColor === 'w') {
+    iconEl.textContent = '🏆';
+    titleEl.textContent = '백 (White) 승리!';
+  } else {
+    iconEl.textContent = gameState.mode === 'ai' ? '🤖' : '🏆';
+    titleEl.textContent = gameState.mode === 'ai' ? '흑 (AI) 승리!' : '흑 (Black) 승리!';
+  }
+  reasonEl.textContent = reasonText;
+  document.getElementById('modal-gameover').classList.remove('hidden');
+}
+
+// 설정 모달 버튼 상태 관리 (전용 CSS 클래스 .setup-option-selected로 테두리 색 확실히 전환)
+let selectedSetupMode = 'ai';
+let selectedSetupSide = 'w';
+let selectedSetupDiff = 'normal';
+let selectedSetupTime = '10+5';
+
+function selectSetupButtonGroup(selector, activeBtn) {
+  document.querySelectorAll(selector).forEach(btn => {
+    btn.classList.remove('setup-option-selected');
+  });
+  activeBtn.classList.add('setup-option-selected');
+}
+
+document.querySelectorAll('.setup-mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.setup-mode-btn', btn);
+    selectedSetupMode = btn.dataset.mode;
+    document.getElementById('ai-difficulty-section').style.display = selectedSetupMode === 'ai' ? 'block' : 'none';
+    document.getElementById('player-side-section').style.display = selectedSetupMode === 'ai' ? 'block' : 'none';
+  });
+});
+
+document.querySelectorAll('.setup-side-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.setup-side-btn', btn);
+    selectedSetupSide = btn.dataset.side;
+  });
+});
+
+document.querySelectorAll('.setup-diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.setup-diff-btn', btn);
+    selectedSetupDiff = btn.dataset.diff;
+  });
+});
+
+document.querySelectorAll('.setup-time-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.setup-time-btn', btn);
+    selectedSetupTime = btn.dataset.time;
+  });
+});
+
+function startNewGame() {
+  sound.init();
+  const [mins, inc] = selectedSetupTime.split('+').map(Number);
+
+  gameState.mode = selectedSetupMode;
+  gameState.playerColor = selectedSetupSide === 'random'
+    ? (Math.random() < 0.5 ? 'w' : 'b')
+    : selectedSetupSide;
+  gameState.difficulty = selectedSetupDiff;
+  gameState.baseMinutes = mins;
+  gameState.incSeconds = inc;
+  gameState.timeLeft = { w: mins * 60, b: mins * 60 };
+  gameState.board = createInitialBoard();
+  gameState.turn = 'w';
+  gameState.selectedPos = null;
+  gameState.validMoves = [];
+  gameState.hoveredMove = null;
+  gameState.lastMove = null;
+  gameState.capturedBy = { w: [], b: [] };
+  gameState.moveCount = 0;
+  gameState.isGameOver = false;
+  gameState.pendingPromotion = null;
+  gameState.aiThinking = false;
+  gameState.history = [];
+  gameState.viewStep = 0;
+  gameState.analysisPhase = 'edit';
+
+  const diffLabels = { easy: '쉬움', normal: '보통', hard: '어려움' };
+  const analysisPanel = document.getElementById('analysis-panel');
+  const tutorialBox = document.getElementById('tutorial-piece-box');
+  const analysisTabs = document.getElementById('analysis-mode-tabs');
+  const analysisPalette = document.getElementById('analysis-palette-box');
+  const analysisTitle = document.getElementById('analysis-panel-title');
+  const cardWhite = document.getElementById('card-white');
+  const rightSidebar = document.getElementById('right-sidebar');
+  const leftSidebar = document.getElementById('left-sidebar');
+  const centerSection = document.getElementById('center-board-section');
+
+  // 기본 대국/분석실 레이아웃 복원
+  cardWhite.classList.remove('hidden');
+  rightSidebar.classList.remove('hidden');
+  leftSidebar.className = 'lg:col-span-3 flex flex-col gap-2 sm:gap-3 order-2 lg:order-1';
+  centerSection.className = 'lg:col-span-6 flex flex-col items-center justify-center order-1 lg:order-2';
+
+  if (gameState.mode === 'analysis') {
+    analysisPanel.classList.remove('hidden');
+    tutorialBox.classList.add('hidden');
+    analysisTabs.classList.remove('hidden');
+    analysisPalette.classList.remove('hidden');
+    analysisTitle.textContent = '🧪 혼자 연구하기 (자유 배치 & 실험)';
+    setAnalysisPhase('edit');
+    document.getElementById('mode-display').textContent = '🧪 분석/연구실 (무제한)';
+    document.getElementById('white-player-name').textContent = '백 (연구용)';
+    document.getElementById('black-player-name').textContent = '흑 (연구용)';
+    document.getElementById('timer-white').textContent = '∞';
+    document.getElementById('timer-black').textContent = '∞';
+  } else {
+    analysisPanel.classList.add('hidden');
+    tutorialBox.classList.add('hidden');
+    document.getElementById('mode-display').textContent =
+      gameState.mode === 'ai'
+        ? `AI 대전 (${diffLabels[gameState.difficulty]} · ${gameState.playerColor === 'w' ? '선공 백' : '후공 흑'})`
+        : '친구 대전 (2인)';
+    document.getElementById('white-player-name').textContent =
+      gameState.mode === 'ai'
+        ? (gameState.playerColor === 'w' ? '백 (나)' : '백 (AI)')
+        : '백 (White)';
+    document.getElementById('black-player-name').textContent =
+      gameState.mode === 'ai'
+        ? (gameState.playerColor === 'b' ? '흑 (나)' : '흑 (AI)')
+        : '흑 (Black)';
+    updateTimerUI();
+    startClock();
+  }
+
+  document.getElementById('move-log').innerHTML =
+    '<div class="text-slate-500 italic">대국이 시작되었습니다. 첫 수를 두세요!</div>';
+
+  recordSnapshot();
+  updateCapturedUI();
+  updateTurnUI();
+  renderDynamicLayers();
+
+  document.getElementById('modal-setup').classList.add('hidden');
+  document.getElementById('modal-gameover').classList.add('hidden');
+  document.getElementById('modal-promotion').classList.add('hidden');
+
+  if (gameState.mode === 'ai' && gameState.playerColor === 'b') {
+    gameState.aiThinking = true;
+    const badgeW = document.getElementById('badge-white-turn');
+    if (badgeW) badgeW.classList.remove('hidden');
+    setTimeout(() => {
+      makeAIMove();
+      gameState.aiThinking = false;
+    }, 750);
+  }
+}
+
+document.getElementById('btn-start-match').addEventListener('click', startNewGame);
+document.getElementById('btn-new-game').addEventListener('click', () => {
+  stopClock();
+  document.getElementById('modal-setup').classList.remove('hidden');
+});
+document.getElementById('btn-gameover-restart').addEventListener('click', () => {
+  document.getElementById('modal-gameover').classList.add('hidden');
+  document.getElementById('modal-setup').classList.remove('hidden');
+});
+
+document.getElementById('btn-gameover-review').addEventListener('click', () => {
+  document.getElementById('modal-gameover').classList.add('hidden');
+  if (gameState.history.length > 1) {
+    goToHistoryStep(gameState.history.length - 2);
+  }
+});
+
+document.getElementById('btn-rev-first').addEventListener('click', () => goToHistoryStep(0));
+document.getElementById('btn-rev-prev').addEventListener('click', () => goToHistoryStep(gameState.viewStep - 1));
+document.getElementById('btn-rev-next').addEventListener('click', () => goToHistoryStep(gameState.viewStep + 1));
+document.getElementById('btn-rev-last').addEventListener('click', () => goToHistoryStep(gameState.history.length - 1));
+document.getElementById('btn-exit-review').addEventListener('click', () => goToHistoryStep(gameState.history.length - 1));
+
+// 폰 승진 선택 이벤트
+document.querySelectorAll('.promo-choice-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!gameState.pendingPromotion) return;
+    const { q, r, fromQ, fromR, move, targetPiece } = gameState.pendingPromotion;
+    const piece = gameState.board.get(coordKey(q, r));
+    if (piece) {
+      piece.type = btn.dataset.promo;
+    }
+    gameState.pendingPromotion = null;
+    document.getElementById('modal-promotion').classList.add('hidden');
+    sound.playMoveTick(true);
+
+    recordSnapshot();
+    addMoveLog(piece, fromQ, fromR, move, targetPiece);
+    updateCapturedUI();
+    finishTurn();
+  });
+});
+
+// ----------------------------------------------------------------------------
+// 10. 분석/연구실 & 튜토리얼 컨트롤러
+// ----------------------------------------------------------------------------
+function setAnalysisPhase(phase) {
+  gameState.analysisPhase = phase;
+  const btnEdit = document.getElementById('btn-ana-edit');
+  const btnPlay = document.getElementById('btn-ana-play');
+  const paletteBox = document.getElementById('analysis-palette-box');
+  const badge = document.getElementById('analysis-phase-badge');
+
+  if (phase === 'edit') {
+    btnEdit.className = 'py-1.5 rounded-xl bg-cyan-500 text-slate-950 text-xs font-extrabold cursor-pointer transition';
+    btnPlay.className = 'py-1.5 rounded-xl bg-slate-700 text-slate-200 hover:bg-slate-600 text-xs font-bold cursor-pointer transition';
+    paletteBox.classList.remove('hidden');
+    badge.textContent = '배치 편집 중';
+    deselectPiece();
+  } else {
+    btnPlay.className = 'py-1.5 rounded-xl bg-cyan-500 text-slate-950 text-xs font-extrabold cursor-pointer transition';
+    btnEdit.className = 'py-1.5 rounded-xl bg-slate-700 text-slate-200 hover:bg-slate-600 text-xs font-bold cursor-pointer transition';
+    paletteBox.classList.add('hidden');
+    badge.textContent = '자유 이동 테스트';
+  }
+  updateTurnUI();
+}
+
+document.getElementById('btn-analysis-mode').addEventListener('click', () => {
+  sound.init();
+  selectedSetupMode = 'analysis';
+  startNewGame();
+});
+
+document.getElementById('btn-ana-edit').addEventListener('click', () => setAnalysisPhase('edit'));
+document.getElementById('btn-ana-play').addEventListener('click', () => setAnalysisPhase('play'));
+
+document.querySelectorAll('.ana-brush-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ana-brush-btn').forEach(b => {
+      b.classList.remove('active', 'bg-cyan-500/25', 'border-cyan-400', 'bg-red-500/30', 'border-red-400', 'ring-2', 'ring-cyan-300', 'ring-red-400', 'text-white', 'shadow-md');
+      if (b.dataset.brush === 'erase') {
+        b.classList.add('bg-red-950/70', 'border-red-500/40', 'text-red-300');
+      } else {
+        b.classList.add('bg-slate-900/70', 'border-slate-700');
+        if (b.dataset.brush === 'b:P') {
+          b.classList.add('text-cyan-300');
+        } else if (b.dataset.brush.startsWith('b:')) {
+          b.classList.add('text-slate-300');
+        } else {
+          b.classList.add('text-slate-200');
+        }
+      }
+    });
+
+    btn.classList.add('active', 'shadow-md');
+    if (btn.dataset.brush === 'erase') {
+      btn.classList.remove('bg-red-950/70', 'border-red-500/40', 'text-red-300');
+      btn.classList.add('bg-red-500/30', 'border-red-400', 'ring-2', 'ring-red-400', 'text-white');
+    } else {
+      btn.classList.remove('bg-slate-900/70', 'border-slate-700', 'text-slate-200', 'text-slate-300', 'text-cyan-300');
+      btn.classList.add('bg-cyan-500/25', 'border-cyan-400', 'ring-2', 'ring-cyan-300', 'text-white');
+    }
+    gameState.analysisBrush = btn.dataset.brush;
+  });
+});
+
+document.getElementById('btn-ana-clear').addEventListener('click', () => {
+  gameState.board.clear();
+  gameState.lastMove = null;
+  gameState.capturedBy = { w: [], b: [] };
+  gameState.history = [];
+  recordSnapshot();
+  deselectPiece();
+  updateCapturedUI();
+  renderDynamicLayers();
+});
+
+document.getElementById('btn-ana-reset-std').addEventListener('click', () => {
+  gameState.board = createInitialBoard();
+  gameState.lastMove = null;
+  gameState.capturedBy = { w: [], b: [] };
+  gameState.history = [];
+  recordSnapshot();
+  deselectPiece();
+  updateCapturedUI();
+  renderDynamicLayers();
+});
+
+let currentTutorialPiece = 'P';
+
+const TUTORIAL_DATA = {
+  P: {
+    title: '◈ 프리스타 (Prism) 굴절 체험',
+    desc: '<b class="text-cyan-300">◈ 프리스타 (Prism)</b>: 꼭짓점(대각선) 방향으로 최대 2칸 직진합니다. 첫 1칸에서 <b class="text-amber-300">아군 기물</b>을 만나면 거울처럼 밟고 <b class="text-cyan-300">살짝 꺾여 바로 옆 칸</b>의 적 룩·나이트를 기습할 수 있습니다!',
+    setup: () => {
+      gameState.board.set(coordKey(-2, 1), { type: 'P', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(0, 0),  { type: 'p', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(1, 0),  { type: 'R', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(1, -1), { type: 'N', color: 'b', hasMoved: false });
+      return { q: -2, r: 1 };
+    }
+  },
+  Q: {
+    title: '♕ 퀸 (Queen) 이동 체험',
+    desc: '<b class="text-amber-300">♕ 퀸 (9점)</b>: 육각형 보드에서 룩(6개 변 방향)과 비숍(6개 꼭짓점 방향)을 합친 <b>총 12방향</b>으로 가로막힐 때까지 직선 이동합니다.',
+    setup: () => {
+      gameState.board.set(coordKey(0, 0), { type: 'Q', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(2, -1), { type: 'p', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(-2, 0), { type: 'p', color: 'b', hasMoved: false });
+      return { q: 0, r: 0 };
+    }
+  },
+  R: {
+    title: '♖ 룩 (Rook) 이동 체험',
+    desc: '<b class="text-amber-300">♖ 룩 (5점)</b>: 육각형 타일의 <b>6개 변(인접 칸)</b> 방향으로 가로막힐 때까지 끝까지 직진합니다.',
+    setup: () => {
+      gameState.board.set(coordKey(0, 0), { type: 'R', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(0, -3), { type: 'p', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(3, 0), { type: 'p', color: 'b', hasMoved: false });
+      return { q: 0, r: 0 };
+    }
+  },
+  B: {
+    title: '♗ 비숍 (Bishop) 이동 체험',
+    desc: '<b class="text-amber-300">♗ 비숍 (3점)</b>: 육각형 타일의 <b>6개 꼭짓점(대각선)</b> 방향으로 이동하며, 항상 출발한 타일과 <b>같은 색깔의 칸</b>만 밟습니다.',
+    setup: () => {
+      gameState.board.set(coordKey(0, 0), { type: 'B', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(2, -1), { type: 'p', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(-1, 2), { type: 'p', color: 'b', hasMoved: false });
+      return { q: 0, r: 0 };
+    }
+  },
+  N: {
+    title: '♘ 나이트 (Knight) 도약 체험',
+    desc: '<b class="text-amber-300">♘ 나이트 (3점)</b>: 한 방향으로 2칸 직진 후 옆으로 1칸 꺾어 <b>최대 12곳</b>으로 주변 기물을 뛰어넘어 도약합니다.',
+    setup: () => {
+      gameState.board.set(coordKey(0, 0), { type: 'N', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(1, 0), { type: 'p', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(3, -1), { type: 'p', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(2, -3), { type: 'p', color: 'b', hasMoved: false });
+      return { q: 0, r: 0 };
+    }
+  },
+  p: {
+    title: '♙ 폰 (Pawn) 전진 & 포획 체험',
+    desc: '<b class="text-amber-300">♙ 폰 (1점)</b>: 상대 진영(우상/우하 2방향)으로 1칸 전진(첫 이동 시 2칸 가능)하며, 좌우 전방 대각선 칸의 적 기물을 포획합니다. 반대편 끝줄 도달 시 승진합니다.',
+    setup: () => {
+      gameState.board.set(coordKey(-2, 1), { type: 'p', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(-1, -1), { type: 'p', color: 'b', hasMoved: false });
+      gameState.board.set(coordKey(-1, 2), { type: 'p', color: 'b', hasMoved: false });
+      return { q: -2, r: 1 };
+    }
+  },
+  K: {
+    title: '♔ 킹 (King) 이동 & 승리 목표 체험',
+    desc: '<b class="text-amber-300">♔ 킹 (승리 목표)</b>: 주변 <b>12방향(변 6곳 + 꼭짓점 6곳)</b>으로 1칸씩 이동합니다. 상대방의 킹을 직접 잡으면 즉시 승리합니다!',
+    setup: () => {
+      gameState.board.set(coordKey(0, 0), { type: 'K', color: 'w', hasMoved: false });
+      gameState.board.set(coordKey(2, -1), { type: 'p', color: 'b', hasMoved: false });
+      return { q: 0, r: 0 };
+    }
+  }
+};
+
+function loadTutorialScenario(pieceType) {
+  currentTutorialPiece = pieceType;
+  const spec = TUTORIAL_DATA[pieceType] || TUTORIAL_DATA.P;
+
+  gameState.board.clear();
+  const focusPos = spec.setup();
+  gameState.lastMove = null;
+  gameState.capturedBy = { w: [], b: [] };
+  gameState.history = [];
+  recordSnapshot();
+  updateCapturedUI();
+  setAnalysisPhase('play');
+
+  document.getElementById('tutorial-piece-box').classList.remove('hidden');
+  document.getElementById('analysis-mode-tabs').classList.add('hidden');
+  document.getElementById('analysis-palette-box').classList.add('hidden');
+  document.getElementById('card-white').classList.add('hidden');
+  document.getElementById('right-sidebar').classList.add('hidden');
+  document.getElementById('left-sidebar').className = 'lg:col-span-4 flex flex-col gap-2 sm:gap-3 order-2 lg:order-1';
+  document.getElementById('center-board-section').className = 'lg:col-span-8 flex flex-col items-center justify-center order-1 lg:order-2';
+  document.getElementById('analysis-panel-title').textContent = '◈ 기물별 이동 & 규칙 튜토리얼';
+  document.getElementById('analysis-phase-badge').textContent = '직접 이동 체험';
+  document.getElementById('tutorial-desc-box').innerHTML = spec.desc;
+  document.getElementById('mode-display').textContent = spec.title;
+  document.getElementById('status-message').innerHTML = spec.desc;
+
+  document.querySelectorAll('.tut-piece-btn').forEach(btn => {
+    if (btn.dataset.tut === pieceType) {
+      btn.className = 'tut-piece-btn py-1.5 rounded-xl bg-cyan-500 text-slate-950 text-xs font-extrabold cursor-pointer transition';
+    } else {
+      btn.className = 'tut-piece-btn py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold cursor-pointer transition';
+    }
+  });
+
+  selectPiece(focusPos.q, focusPos.r);
+}
+
+function startPrismTutorial() {
+  sound.init();
+  selectedSetupMode = 'analysis';
+  startNewGame();
+  loadTutorialScenario('P');
+}
+
+document.querySelectorAll('.tut-piece-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadTutorialScenario(btn.dataset.tut));
+});
+
+document.getElementById('btn-tut-reset').addEventListener('click', () => {
+  loadTutorialScenario(currentTutorialPiece);
+});
+
+document.getElementById('btn-start-tutorial').addEventListener('click', startPrismTutorial);
+document.getElementById('btn-rules-to-tutorial').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.add('hidden');
+  startPrismTutorial();
+});
+
+// 무르기 & 기보 복사 버튼 바인딩
+document.getElementById('btn-undo-move').addEventListener('click', undoLastMove);
+document.getElementById('btn-copy-pgn').addEventListener('click', copyMoveHistoryText);
+document.getElementById('btn-gameover-copy').addEventListener('click', copyMoveHistoryText);
+
+// ----------------------------------------------------------------------------
+// 11. 규칙 모달 이벤트
+// ----------------------------------------------------------------------------
+document.getElementById('btn-rules').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.remove('hidden');
+});
+document.getElementById('btn-close-rules').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.add('hidden');
+});
+document.getElementById('btn-close-rules-bottom').addEventListener('click', () => {
+  document.getElementById('modal-rules').classList.add('hidden');
+});
+
+document.getElementById('btn-sound-toggle').addEventListener('click', (e) => {
+  sound.enabled = !sound.enabled;
+  e.target.textContent = sound.enabled ? '🔊' : '🔇';
+  syncMuteButtonUI();
+});
+
+// ----------------------------------------------------------------------------
+// 12. 환경 설정 모달 컨트롤러 (보드 색, 바탕 색, 기물 모습, 효과음)
+// ----------------------------------------------------------------------------
+function syncMuteButtonUI() {
+  const btnMute = document.getElementById('btn-setting-mute');
+  const btnTopSound = document.getElementById('btn-sound-toggle');
+  if (btnTopSound) btnTopSound.textContent = sound.enabled ? '🔊' : '🔇';
+  if (!btnMute) return;
+  if (sound.enabled) {
+    btnMute.textContent = '🔊 소리 켜짐';
+    btnMute.className = 'px-3.5 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-extrabold cursor-pointer transition';
+  } else {
+    btnMute.textContent = '🔇 음소거됨';
+    btnMute.className = 'px-3.5 py-1.5 rounded-xl bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition';
+  }
+}
+
+document.getElementById('btn-settings').addEventListener('click', () => {
+  syncMuteButtonUI();
+  document.getElementById('modal-settings').classList.remove('hidden');
+});
+document.getElementById('btn-setup-open-settings').addEventListener('click', () => {
+  syncMuteButtonUI();
+  document.getElementById('modal-settings').classList.remove('hidden');
+});
+document.getElementById('btn-close-settings').addEventListener('click', () => {
+  document.getElementById('modal-settings').classList.add('hidden');
+});
+document.getElementById('btn-close-settings-bottom').addEventListener('click', () => {
+  document.getElementById('modal-settings').classList.add('hidden');
+});
+
+document.querySelectorAll('.set-board-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.set-board-btn', btn);
+    currentBoardTheme = btn.dataset.boardTheme;
+    TILE_STYLES = BOARD_THEMES[currentBoardTheme] || BOARD_THEMES.classic;
+    renderBoardTiles();
+    renderDynamicLayers();
+  });
+});
+
+document.querySelectorAll('.set-bg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.set-bg-btn', btn);
+    currentBgTheme = btn.dataset.bgTheme;
+    document.body.style.background = BG_THEMES[currentBgTheme] || BG_THEMES.navy;
+  });
+});
+
+document.querySelectorAll('.set-piece-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.set-piece-btn', btn);
+    currentPieceStyle = btn.dataset.pieceStyle;
+    renderDynamicLayers();
+  });
+});
+
+document.getElementById('btn-setting-mute').addEventListener('click', () => {
+  sound.enabled = !sound.enabled;
+  syncMuteButtonUI();
+  if (sound.enabled) sound.playMoveTick(false);
+});
+
+document.querySelectorAll('.set-sound-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectSetupButtonGroup('.set-sound-btn', btn);
+    sound.soundType = btn.dataset.soundType;
+    sound.enabled = true;
+    syncMuteButtonUI();
+    sound.playMoveTick(true);
+  });
+});
+
+window.onload = function () {
+  renderBoardTiles();
+  gameState.board = createInitialBoard();
+  gameState.history = [];
+  recordSnapshot();
+  renderDynamicLayers();
+};
+</script>
+</body>
+</html>
